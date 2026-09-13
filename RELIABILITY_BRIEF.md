@@ -131,7 +131,7 @@ Beyond the 30-scenario harness (which runs against recording fakes), we ran a fu
 
 Duffel dashboard evidence:
 
-![Duffel dashboard showing order 3ZPLMP created and cancelled in the ZS-owned test account](docs/duffel_live.png)
+![Duffel dashboard showing order 3ZPLMP created and cancelled in our test account](docs/duffel_live.png)
 
 This proves the fake↔real client contract holds: the same code path that runs 30/30 in CI also drives a real supplier round-trip.
 
