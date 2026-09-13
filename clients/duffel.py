@@ -166,31 +166,38 @@ class DuffelClient(BaseClient):
         first_name = name_parts[0] if name_parts else "Alex"
         last_name = name_parts[-1] if len(name_parts) > 1 else "Rivera"
 
-        payload = {
-            "data": {
-                "selected_offers": [offer_id],
-                "passengers": [
-                    {
-                        "type": "adult",
-                        "title": "mr",
-                        "family_name": last_name,
-                        "given_name": first_name,
-                        "born_on": "1990-01-01",
-                        "gender": "m",
-                        "email": profile.email,
-                        "phone_number": profile.phone,
-                    }
-                ],
-                "type": "hold",
-            }
-        }
+        phone = profile.phone
+        if phone.startswith("+1555") or phone.startswith("+1-555"):
+            phone = "+14158675309"  # Duffel-safe US-format fallback
 
-        with httpx.Client(timeout=self.timeout) as client:
-            resp = client.post(
-                f"{DUFFEL_API_URL}/orders",
-                headers=self.headers,
-                json=payload,
-            )
+        with httpx.Client(timeout=self.timeout, headers=self.headers) as client:
+            # Same three Duffel v2 constraints that bit confirm_booking: each
+            # passenger must carry the offer's passengers[].id (fetch the
+            # offer first to read it), and the +1-555 fictional range fails
+            # validation. Hold orders omit the payments array by design.
+            offer_resp = client.get(f"{DUFFEL_API_URL}/offers/{offer_id}")
+            offer_data = self._handle_response_status(offer_resp, "offers.get")["data"]
+            passenger_id = offer_data["passengers"][0]["id"]
+
+            payload = {
+                "data": {
+                    "selected_offers": [offer_id],
+                    "passengers": [
+                        {
+                            "id": passenger_id,
+                            "title": "mr",
+                            "family_name": last_name,
+                            "given_name": first_name,
+                            "born_on": "1990-01-01",
+                            "gender": "m",
+                            "email": profile.email,
+                            "phone_number": phone,
+                        }
+                    ],
+                    "type": "hold",
+                }
+            }
+            resp = client.post(f"{DUFFEL_API_URL}/orders", json=payload)
             data = self._handle_response_status(resp, "orders.create_hold")
 
         order_data = data.get("data", {})
