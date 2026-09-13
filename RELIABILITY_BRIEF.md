@@ -20,11 +20,20 @@ Autonomous agents operating in production travel and financial systems face thre
 - **Duffel NDC Flights API** (Search, Hold Orders, Confirm, Verify, and Cancel)
 - **Google Calendar API** (OAuth2 commitment resolution & trip card patching)
 - **Gmail API** (Itinerary dispatch & EU261 compensation drafting)
-- **Twilio SMS Gateway** (Human-in-the-loop interactive mobile authorizations)
+- **Twilio Messaging** (Human-in-the-loop mobile authorizations, over SMS or WhatsApp)
 
 Rather than giving an LLM unconstrained tool-calling freedom, Rebound executes an **explicit 9-step Directed Acyclic Graph (DAG)** where **hard constraints, spend limits, and safety invariants are enforced deterministically in Python code**. Ranking the survivors of those hard constraints is also fully deterministic in this build — a transparent, auditable heuristic (preferred airline, red-eye avoidance, layover count, cost delta) rather than a model call — so a traveler's spend decisions never depend on LLM judgment. Irreversible state mutations are guarded by the same kind of strict software contracts, not by prompting.
 
-**Verification status:** the behavior described in this brief is verified against the automated 30-scenario eval suite and in-memory API fakes (`clients/fakes.py`), including a dedicated regression test for the stateless SMS-resume path (`evals/test_stateless_resume.py`). **Duffel is additionally verified against the real test API** — a full offer → book → verify → cancel loop, all five calls 2xx, with dashboard evidence (see [Live Sandbox Verification](#live-sandbox-verification)). The Google Calendar, Gmail, and Twilio clients (`clients/gcal.py`, `clients/gmail.py`, `clients/twilio_sms.py`) have been reviewed for interface consistency with their fakes but have not yet been exercised against live credentials — we call that out rather than let the harness imply coverage it doesn't have.
+**Verification status:** the behavior described in this brief is verified against the automated 30-scenario eval suite and in-memory API fakes (`clients/fakes.py`), including a dedicated regression test for the stateless approval-resume path (`evals/test_stateless_resume.py`). Two of the four integrations are additionally verified live:
+
+| Integration | Status |
+|---|---|
+| **Duffel** | **Live.** Full offer → book → verify → cancel loop against the real test API, all five calls 2xx, dashboard evidence in [Live Sandbox Verification](#live-sandbox-verification). |
+| **Twilio** | **Live.** A real approval message delivered to a real handset, the human's reply routed back through the production webhook, and the booking completed by a separate process that had no in-memory state — the full human-in-the-loop round trip. |
+| **Google Calendar** | Fakes only. Client reviewed for interface parity with its fake; not exercised against live credentials. |
+| **Gmail** | Fakes only. Client reviewed for interface parity with its fake; not exercised against live credentials. |
+
+We state the last two plainly rather than let a 30/30 headline imply coverage the harness does not have.
 
 ---
 
@@ -139,7 +148,27 @@ This proves the fake↔real client contract holds: the same code path that runs 
 
 ---
 
-## 6. Post-Mortem Case Studies
+## 6. Failures Found During the Build
+
+Every bug below was real, was found during this build, and is fixed in the committed code. We think the first one is the most useful thing we learned, because it is the failure mode an evaluation harness is *supposed* to catch and didn't.
+
+**1. A green eval suite while the product was dead.** All 30 scenarios passed, and the actual production approval path could not book a flight at all. The harness drives approvals as `agent.run(event, sms_reply="1")` — one Python call, with the ranked offers still on the stack. The real Twilio webhook does something fundamentally different: it constructs a *brand-new* `ReboundAgent` in a separate request, with no memory of the run that sent the SMS. `ranked_offers` arrived as `None`, the chosen offer resolved to `None`, and every real traveler reply escalated instead of booking. The fix persists the pending offers and hold-order id to SQLite and reloads them by `event_id`; `evals/test_stateless_resume.py` now drives a second, independent agent instance the way the webhook does. **Lesson: a test that shares process state with the code under test is not testing the transport, and the transport is where agents actually break.**
+
+**2. A headline invariant the code did not implement.** This document previously claimed Rebound "converts the hold order into a confirmed ticket." It did not. `create_hold_order()` ran, and then `confirm_booking()` was called without the hold's id — minting an unrelated new order and silently abandoning the hold. The claim was never tested because the assertion only checked that *a* hold existed, not that it was consumed. Fixed by threading `hold_order_id` through to booking; the test now asserts zero orders remain in `hold` status and that the confirmed order reuses the hold's id.
+
+**3. A live client that would have crashed on first contact.** `agent/loop.py` called `request_cancellation_quote(order_id, original_amount=...)`. The fake accepted that keyword; the real `DuffelClient` did not. Every test passed because tests only ever exercised the fake — the first real cancellation would have raised `TypeError`. Found by auditing each method for real-vs-fake signature parity rather than trusting the tests. **Lesson: a fake that has drifted from its real counterpart converts integration bugs into green checkmarks.**
+
+**4. A hardcoded payment amount.** The live Duffel client paid a literal `"500.00"` for any held order regardless of its actual fare. Against the real API this is either a rejected payment or the wrong charge. It now fetches the held order and pays its true `total_amount`.
+
+**5. An audit trail that misreported who approved a booking.** Human-approved bookings were filed under the placeholder event id `evt_resumed` instead of the disruption that caused them, and the database recorded `action=book` while the returned record said `ask_then_book` — the row was written before the action was corrected. The same root cause (`event=None` on the resumed path) meant EU261 compensation drafting could never run for an approved booking, only an auto-booked one. For a system whose entire argument is auditability, the audit was wrong; the pending approval now persists its originating event and the resumed run rebuilds from it.
+
+**6. A dependency that existed only on one laptop.** `POST /sms` parses Twilio's form encoding, which FastAPI needs `python-multipart` for. It was missing from `requirements.txt` and worked purely because it happened to be installed globally on the developer machine. On a clean checkout — a judge's, or CI's — the webhook would have failed at request time with no import error to explain why.
+
+**7. A messaging channel that was never going to deliver.** Our first live SMS attempt returned `30032`: US toll-free numbers now require Toll-Free Verification, which takes days. The alternate destination was an Indian number, where unregistered international A2P traffic is filtered under DLT rules. Both are policy walls, not bugs, and neither is solvable in a hackathon window. We routed the same messages over Twilio's WhatsApp channel instead — a config switch, `TWILIO_CHANNEL=whatsapp`, that the agent never sees. **Lesson: verify the delivery channel end-to-end before building on the assumption that it works.**
+
+---
+
+## 7. Post-Mortem Case Studies
 
 ### Case Study A: The Half-Dead State (Scenario S20)
 * **The Scenario:** What happens if the agent process crashes or the network drops immediately after the new ticket is confirmed, before the old ticket is cancelled?
@@ -158,7 +187,7 @@ This proves the fake↔real client contract holds: the same code path that runs 
 
 ---
 
-## 7. Submission Checklist & Rubric Mapping
+## 8. Submission Checklist & Rubric Mapping
 
 | Rubric Criterion | Weight | How Rebound Exceeds Expectations |
 |---|---|---|
