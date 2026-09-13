@@ -41,29 +41,29 @@ We state the last two plainly rather than let a 30/30 headline imply coverage th
 
 ```mermaid
 flowchart TD
-    A["1. Ingest & Dedupe\n(Sub-50ms ACK, SQLite WAL Deduplication)"] --> B["2. Resolve Context\n(Google Calendar Hard Deadline)"]
-    B --> C["3. Assess Impact\n(Is Delay Acceptable? Arrival vs Buffer)"]
-    C -->|Delay Acceptable| Z1["Notify Only\n(SMS alert, no rebooking)"]
-    C -->|Trip Disrupted| D["4. Search Flights\n(Duffel NDC + Tenacity Exponential Backoff)"]
-    D --> E["5. Deterministic Code Filter & Rank\n(Prune Layovers, Deadlines, Preferences)"]
-    E --> F["6. Evaluate Mandate Policy\n(Code checks cost delta vs traveler budget)"]
+    A["1. Ingest & Dedupe<br/>(Sub-50ms ACK, SQLite WAL Deduplication)"] --> B["2. Resolve Context<br/>(Google Calendar Hard Deadline)"]
+    B --> C["3. Assess Impact<br/>(Is Delay Acceptable? Arrival vs Buffer)"]
+    C -->|Delay Acceptable| Z1["Notify Only<br/>(SMS alert, no rebooking)"]
+    C -->|Trip Disrupted| D["4. Search Flights<br/>(Duffel NDC + Tenacity Exponential Backoff)"]
+    D --> E["5. Deterministic Code Filter & Rank<br/>(Prune Layovers, Deadlines, Preferences)"]
+    E --> F["6. Evaluate Mandate Policy<br/>(Code checks cost delta vs traveler budget)"]
     
-    F -->|Delta <= $300| G1["Auto-Book Path\n(Proceed to Act)"]
-    F -->|Delta $301 - $800| G2["Hold-Order Pattern\n(Lock Seat 24h -> Twilio SMS Approval)"]
-    F -->|Delta > $800 or 0 survivors| G3["Escalate Cleanly\n(SMS traveler to airline desk, 0 bookings)"]
+    F -->|Delta <= $300| G1["Auto-Book Path<br/>(Proceed to Act)"]
+    F -->|Delta $301 - $800| G2["Hold-Order Pattern<br/>(Lock Seat 24h -> Twilio SMS Approval)"]
+    F -->|Delta > $800 or 0 survivors| G3["Escalate Cleanly<br/>(SMS traveler to airline desk, 0 bookings)"]
     
     G2 -->|SMS Reply '1'| G1
-    G2 -->|SMS Reply 'NO' or Timeout| Z2["Abort & Release Hold\n(Zero bookings charged)"]
+    G2 -->|SMS Reply 'NO' or Timeout| Z2["Abort & Release Hold<br/>(Zero bookings charged)"]
     
-    G1 --> H["7. Act: Confirm Booking\n(Duffel NDC Order Creation)"]
-    H --> I["8. Verify: Integrity Audit\n(Duffel GET Order == Active?)"]
-    I -->|Verification Failed| J1["Safety Halt: Old Flight Preserved\n(Do NOT cancel original booking)"]
-    I -->|Verification Verified| J2["8b. Cancel Old Flight\n(Quote & confirm airline refund)"]
+    G1 --> H["7. Act: Confirm Booking<br/>(Duffel NDC Order Creation)"]
+    H --> I["8. Verify: Integrity Audit<br/>(Duffel GET Order == Active?)"]
+    I -->|Verification Failed| J1["Safety Halt: Old Flight Preserved<br/>(Do NOT cancel original booking)"]
+    I -->|Verification Verified| J2["8b. Cancel Old Flight<br/>(Quote & confirm airline refund)"]
     
-    J2 --> K["8c. Patch Google Calendar\n(Update flight card times)"]
-    K --> L["8d. Gmail Itinerary & EU261\n(HTML itinerary + Draft statutory claim)"]
-    L --> M["8e. Notify Pickup Contact\n(SMS to arrival contact)"]
-    M --> N["9. Report & Audit\n(Final traveler SMS + JSONL trace commit)"]
+    J2 --> K["8c. Patch Google Calendar<br/>(Update flight card times)"]
+    K --> L["8d. Gmail Itinerary & EU261<br/>(HTML itinerary + Draft statutory claim)"]
+    L --> M["8e. Notify Pickup Contact<br/>(SMS to arrival contact)"]
+    M --> N["9. Report & Audit<br/>(Final traveler SMS + JSONL trace commit)"]
 ```
 
 ---
