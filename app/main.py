@@ -182,12 +182,13 @@ async def receive_twilio_sms_webhook(
     Receives inbound SMS replies from travelers via Twilio webhook (form-encoded).
     Resumes the pending approval workflow.
     """
-    logger.info("Inbound reply from %s: '%s'", From, Body)
+    logger.info("Inbound reply raw From=%r Body=%r", From, Body)
     clean_body = Body.strip().upper()
 
     # WhatsApp delivers the sender as 'whatsapp:+1555...'; approvals are stored
     # against the bare E.164 number, so normalize before looking one up.
     sender = strip_channel_prefix(From.strip())
+    logger.info("Inbound reply sender after strip=%r body_clean=%r", sender, clean_body)
 
     pending = db.get_pending_approval_by_phone(sender)
     if not pending:

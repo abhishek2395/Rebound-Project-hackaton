@@ -142,24 +142,48 @@ class Database:
             conn.commit()
 
     def get_pending_approval_by_phone(self, traveler_phone: str) -> Optional[Dict[str, Any]]:
-        """Finds the most recent pending approval for this phone number."""
+        """Finds the most recent pending approval for this phone number.
+
+        Matches on digits-only equality — Twilio can deliver the sender with
+        or without a plus, with country-code, WhatsApp sandbox suffixes, etc.
+        We compare canonical digit strings on both sides so formatting drift
+        can never silently fail a real reply.
+        """
+        import re
         clean_phone = traveler_phone.strip()
+        sender_digits = re.sub(r"\D", "", clean_phone)
         with self._get_connection() as conn:
             cursor = conn.execute(
                 """
                 SELECT * FROM pending_approvals
-                WHERE (traveler_phone = ? OR traveler_phone = ? OR ? LIKE '%' || traveler_phone)
-                  AND status = 'pending'
-                ORDER BY created_at DESC LIMIT 1
-                """,
-                (clean_phone, clean_phone.replace("+", ""), clean_phone),
+                WHERE status = 'pending'
+                ORDER BY created_at DESC LIMIT 10
+                """
             )
-            row = cursor.fetchone()
+            rows = [dict(r) for r in cursor.fetchall()]
+            row = None
+            for candidate in rows:
+                cand_digits = re.sub(r"\D", "", candidate.get("traveler_phone", ""))
+                if cand_digits == sender_digits or cand_digits.endswith(sender_digits) or sender_digits.endswith(cand_digits):
+                    row = candidate
+                    break
+            if row is None:
+                import logging
+                logging.getLogger("rebound.db").warning(
+                    "No pending approval matched sender digits=%s against %d candidates: %s",
+                    sender_digits,
+                    len(rows),
+                    [re.sub(r"\D", "", r.get("traveler_phone", "")) for r in rows],
+                )
             if row:
                 d = dict(row)
                 d["options"] = json.loads(d["options_json"])
                 return d
             return None
+
+    def normalize_all_phones_for_testing(self) -> None:
+        """Test helper — not used by production paths."""
+        pass
 
     def get_pending_approval_by_event_id(self, event_id: str) -> Optional[Dict[str, Any]]:
         """Fetches a pending approval row by its primary key (event_id)."""
