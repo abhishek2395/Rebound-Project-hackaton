@@ -235,6 +235,19 @@ class ReboundAgent:
         # ---------------------------------------------------------------------
         action, cost_delta, mandate_reason = evaluate_mandate(chosen_offer, self.profile, self.original_order_total)
 
+        # DEMO_FORCE_ASK: unconditional bypass to route to the ask path for
+        # video demos where live Duffel prices don't naturally exceed the
+        # profile's approval threshold. Logged explicitly in the trace so
+        # judges see the override rather than mistaking it for policy.
+        if os.getenv("DEMO_FORCE_ASK") and action == ActionType.BOOK:
+            self.tracer.log_entry(
+                step="decide:demo_force_ask",
+                tool="policy.evaluate_mandate",
+                output_summary=f"Original mandate: BOOK (delta ${cost_delta:.2f}). DEMO_FORCE_ASK=1 → routing to ASK for approval demo.",
+            )
+            action = ActionType.ASK
+            mandate_reason = f"[Demo override] Original mandate would auto-book (delta +${cost_delta:.2f}). Routed to ASK to demonstrate the human-in-the-loop path."
+
         if action == ActionType.ESCALATE:
             self.tracer.log_entry(step="decide:escalate", tool="policy.evaluate_mandate", output_summary=mandate_reason)
             return self._handle_escalation(event, deadline, mandate_reason, chosen_offer)
