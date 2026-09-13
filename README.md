@@ -10,6 +10,8 @@
 
 Built for the **Multi-App AI Agent Hackathon** (hosted by Lemma & Comma Capital, judged by Akira Tong & Phillip Li of *Arga Labs*, and the founders of *Userlens*).
 
+📺 **2-minute demo video:** *(link posted after recording — see `docs/twilio_live.png` and `docs/duffel_live.png` for live-verification evidence)*
+
 ---
 
 ## 📑 Key Documents for Judges
@@ -98,6 +100,37 @@ Choose from the interactive menu:
 On the visualizer dashboard (`/viewer/`), test the SMS flow directly:
 - Click **"Reply 1"** on the virtual phone to approve the rebooking.
 - Watch Duffel confirm the ticket, Google Calendar update, Gmail send the itinerary, and EU261 compensation drafted!
+
+---
+
+## 🔴 Full Live-API Demo (real Duffel + real Google + real WhatsApp)
+
+The 30-scenario harness proves the agent's decision logic against fakes. For a click-to-book run that touches the real infrastructure end-to-end:
+
+```bash
+# 1. Fill in .env with your DUFFEL_API_KEY, Twilio creds, and TRAVELER_EMAIL
+cp .env.example .env
+
+# 2. One-time Google OAuth (creates token.json)
+python3.11 scripts/setup_google_oauth.py
+
+# 3. Seed a real "original ticket" + real calendar events
+python3.11 scripts/seed_demo_state.py
+
+# 4. Export the seed IDs into the shell that will run the server
+export DEMO_ORIGINAL_ORDER_ID=$(python3.11 -c "import json; print(json.load(open('.demo_seeds.json'))['DEMO_ORIGINAL_ORDER_ID'])")
+export DEMO_ORIGINAL_TOTAL=$(python3.11 -c "import json; print(json.load(open('.demo_seeds.json'))['DEMO_ORIGINAL_TOTAL'])")
+export DEMO_CALENDAR_EVENT_ID=$(python3.11 -c "import json; print(json.load(open('.demo_seeds.json'))['DEMO_CALENDAR_EVENT_ID'])")
+export DEMO_FORCE_ASK=1              # force the human-in-loop path for the video
+python3.11 -m uvicorn app.main:app --reload --port 8000
+```
+
+Open the viewer → click **S02** → the agent hits real Duffel, resolves a real Google Calendar deadline, places a real Duffel hold order, sends a real WhatsApp approval to your phone. Reply "1" → hold converts to the confirmed booking, cancels the seeded original, patches your calendar event, and sends the itinerary email to `TRAVELER_EMAIL`. Every step in the trace goes green.
+
+Evidence from live testing sessions:
+- Duffel: [`docs/duffel_live.png`](docs/duffel_live.png) (real order created + cancelled in test account)
+- Google Calendar + Gmail: `RELIABILITY_BRIEF.md` → §5 endpoint tables
+- Twilio over WhatsApp: [`docs/twilio_live.png`](docs/twilio_live.png) (round-trip with human replies)
 
 ---
 
