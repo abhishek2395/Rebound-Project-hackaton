@@ -60,6 +60,13 @@ class Database:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
+            # Additive migration: existing rebound.db files were created before
+            # event_json existed, and CREATE TABLE IF NOT EXISTS won't backfill a
+            # new column onto them.
+            existing = {row[1] for row in conn.execute("PRAGMA table_info(pending_approvals)")}
+            if "event_json" not in existing:
+                conn.execute("ALTER TABLE pending_approvals ADD COLUMN event_json TEXT")
+
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS runs (
                     run_id TEXT PRIMARY KEY,
@@ -113,13 +120,14 @@ class Database:
         hold_order_id: Optional[str],
         options: List[Dict[str, Any]],
         expires_at: Optional[datetime] = None,
+        event_json: Optional[str] = None,
     ) -> None:
         with self._get_connection() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO pending_approvals
-                (event_id, run_id, traveler_phone, hold_order_id, options_json, status, expires_at)
-                VALUES (?, ?, ?, ?, ?, 'pending', ?)
+                (event_id, run_id, traveler_phone, hold_order_id, options_json, status, expires_at, event_json)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
                 """,
                 (
                     event_id,
@@ -128,6 +136,7 @@ class Database:
                     hold_order_id,
                     json.dumps(options),
                     expires_at.isoformat() if expires_at else None,
+                    event_json,
                 ),
             )
             conn.commit()

@@ -23,6 +23,7 @@ from agent.loop import ReboundAgent
 from agent.models import CabinClass, DisruptionEvent, FlightOffer, TravelerProfile
 from app.db import Database
 from clients.fakes import FakeCalendar, FakeDuffel, FakeGmail, FakeTwilio
+from clients.twilio_sms import strip_channel_prefix
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("rebound.api")
@@ -178,12 +179,16 @@ async def receive_twilio_sms_webhook(
     Receives inbound SMS replies from travelers via Twilio webhook (form-encoded).
     Resumes the pending approval workflow.
     """
-    logger.info("Inbound SMS from %s: '%s'", From, Body)
+    logger.info("Inbound reply from %s: '%s'", From, Body)
     clean_body = Body.strip().upper()
 
-    pending = db.get_pending_approval_by_phone(From)
+    # WhatsApp delivers the sender as 'whatsapp:+1555...'; approvals are stored
+    # against the bare E.164 number, so normalize before looking one up.
+    sender = strip_channel_prefix(From.strip())
+
+    pending = db.get_pending_approval_by_phone(sender)
     if not pending:
-        logger.warning("No pending approval found for phone number %s", From)
+        logger.warning("No pending approval found for phone number %s", sender)
         twiml = "<Response><Message>[Rebound] No active pending rebooking approval found for this number.</Message></Response>"
         return Response(content=twiml, media_type="application/xml")
 

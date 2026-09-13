@@ -324,6 +324,9 @@ class ReboundAgent:
             hold_order_id=hold_order.order_id,
             options=options_dicts,
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+            # The resumed run rebuilds the original event from this, so the booking
+            # it produces stays attributable to the disruption that caused it.
+            event_json=event.model_dump_json(),
         )
 
         # If an SMS reply is already provided (e.g. In eval harness or fast reply)
@@ -331,6 +334,7 @@ class ReboundAgent:
             return self.resume_with_sms_reply(
                 event.event_id, sms_reply, deadline, ranked_offers,
                 hold_order_id=hold_order.order_id,
+                event=event,
             )
 
         # In live production, agent pauses here until Twilio webhook hits /sms
@@ -357,6 +361,7 @@ class ReboundAgent:
         deadline: Optional[datetime] = None,
         ranked_offers: Optional[List[FlightOffer]] = None,
         hold_order_id: Optional[str] = None,
+        event: Optional[DisruptionEvent] = None,
     ) -> DecisionRecord:
         """
         Resumes execution when a traveler sends an SMS reply.
@@ -370,12 +375,15 @@ class ReboundAgent:
         """
         clean_reply = reply.strip().upper()
 
+        original_event: Optional[DisruptionEvent] = event
         if ranked_offers is None:
             pending = self.db.get_pending_approval_by_event_id(event_id)
             if pending:
                 ranked_offers = [FlightOffer(**opt) for opt in pending["options"]]
                 if hold_order_id is None:
                     hold_order_id = pending.get("hold_order_id")
+                if pending.get("event_json"):
+                    original_event = DisruptionEvent.model_validate_json(pending["event_json"])
 
         self.tracer.log_entry(
             step=f"approval:received:{clean_reply}",
@@ -409,11 +417,7 @@ class ReboundAgent:
             alts = [o.id for o in ranked_offers if o.id != chosen.id] if ranked_offers else []
 
             record = self._execute_booking_and_side_effects(
-                event=DisruptionEvent(
-                    event_id=event_id,
-                    type=DisruptionType.CANCELLED,
-                    flight=chosen.raw_payload or {"carrier": chosen.carrier, "number": "ZZ", "origin": "LHR", "destination": "JFK", "scheduled_departure": chosen.departs_at, "scheduled_arrival": chosen.arrives_at},
-                ) if not ranked_offers else None,
+                event=original_event,
                 deadline=deadline or chosen.arrives_at + timedelta(hours=self.profile.default_deadline_buffer_hours),
                 chosen_offer=chosen,
                 cost_delta=cost_delta,
@@ -421,7 +425,19 @@ class ReboundAgent:
                 alternatives=alts,
                 hold_order_id=hold_order_id,
             )
+            # The booking helper has already written an audit row describing this as a
+            # plain auto-book. Correct it, so the record and the database agree that a
+            # human authorized this booking and which event it belongs to.
             record.action = ActionType.ASK_THEN_BOOK
+            record.event_id = event_id
+            self.db.record_run(
+                run_id=self.run_id,
+                event_id=event_id,
+                action=record.action.value,
+                chosen_offer_id=chosen.id,
+                cost_delta_usd=cost_delta,
+                trace_path=self.tracer.file_path,
+            )
             return record
 
         # Timeout or unparseable response

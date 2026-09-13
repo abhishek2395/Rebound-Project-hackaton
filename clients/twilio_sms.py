@@ -16,20 +16,42 @@ from clients.base import BaseClient, NonRetryableAPIError, RetryableAPIError
 logger = logging.getLogger("rebound.twilio")
 
 
+WHATSAPP_PREFIX = "whatsapp:"
+
+
+def strip_channel_prefix(number: str) -> str:
+    """Normalizes an address like 'whatsapp:+1555...' down to bare E.164."""
+    return number.split(":", 1)[1] if number.startswith(WHATSAPP_PREFIX) else number
+
+
 class TwilioClient(BaseClient):
-    """Client for Twilio SMS operations."""
+    """
+    Client for Twilio messaging.
+
+    Sends over SMS by default. Setting TWILIO_CHANNEL=whatsapp routes the same
+    messages through WhatsApp instead, which avoids US toll-free/10DLC
+    registration and India's DLT filtering — both of which block SMS on a trial
+    account. The agent is unaware of the channel; it just calls send_sms.
+    """
     def __init__(
         self,
         account_sid: Optional[str] = None,
         auth_token: Optional[str] = None,
         from_number: Optional[str] = None,
+        channel: Optional[str] = None,
         dry_run: bool = False,
     ):
         super().__init__(dry_run=dry_run)
         self.account_sid = account_sid or os.getenv("TWILIO_ACCOUNT_SID", "")
         self.auth_token = auth_token or os.getenv("TWILIO_AUTH_TOKEN", "")
         self.from_number = from_number or os.getenv("TWILIO_FROM_NUMBER", "")
+        self.channel = (channel or os.getenv("TWILIO_CHANNEL", "sms")).strip().lower()
         self.timeout = httpx.Timeout(10.0)
+
+    def _address(self, number: str) -> str:
+        """Formats a bare number for the configured channel."""
+        bare = strip_channel_prefix(number)
+        return f"{WHATSAPP_PREFIX}{bare}" if self.channel == "whatsapp" else bare
 
     @retry(
         retry=retry_if_exception_type(RetryableAPIError),
@@ -51,8 +73,8 @@ class TwilioClient(BaseClient):
 
         url = f"https://api.twilio.com/2010-04-01/Accounts/{self.account_sid}/Messages.json"
         data = {
-            "To": to_phone,
-            "From": self.from_number,
+            "To": self._address(to_phone),
+            "From": self._address(self.from_number),
             "Body": body,
         }
 
