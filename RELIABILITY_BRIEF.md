@@ -24,7 +24,7 @@ Autonomous agents operating in production travel and financial systems face thre
 
 Rather than giving an LLM unconstrained tool-calling freedom, Rebound executes an **explicit 9-step Directed Acyclic Graph (DAG)** where **hard constraints, spend limits, and safety invariants are enforced deterministically in Python code**. Ranking the survivors of those hard constraints is also fully deterministic in this build — a transparent, auditable heuristic (preferred airline, red-eye avoidance, layover count, cost delta) rather than a model call — so a traveler's spend decisions never depend on LLM judgment. Irreversible state mutations are guarded by the same kind of strict software contracts, not by prompting.
 
-**Verification status:** everything in this brief is verified against the automated eval suite and in-memory API fakes (`clients/fakes.py`), including a dedicated regression test for the stateless SMS-resume path (`evals/test_stateless_resume.py`). The real API clients (`clients/duffel.py`, `clients/gcal.py`, `clients/gmail.py`, `clients/twilio_sms.py`) have been reviewed for interface consistency with the fakes, but have not yet been exercised against live Duffel/Twilio/Google sandbox credentials — that live run is still pending.
+**Verification status:** the behavior described in this brief is verified against the automated 30-scenario eval suite and in-memory API fakes (`clients/fakes.py`), including a dedicated regression test for the stateless SMS-resume path (`evals/test_stateless_resume.py`). **Duffel is additionally verified against the real test API** — a full offer → book → verify → cancel loop, all five calls 2xx, with dashboard evidence (see [Live Sandbox Verification](#live-sandbox-verification)). The Google Calendar, Gmail, and Twilio clients (`clients/gcal.py`, `clients/gmail.py`, `clients/twilio_sms.py`) have been reviewed for interface consistency with their fakes but have not yet been exercised against live credentials — we call that out rather than let the harness imply coverage it doesn't have.
 
 ---
 
@@ -118,6 +118,24 @@ def test_S21_verify_mismatch(self):
 - **Zero Hallucinated Tool Calls:** All parameters type-validated via Pydantic v2 schemas.
 
 Full per-scenario logs and assertion matrices are generated automatically in [**`EVAL_RESULTS.md`**](EVAL_RESULTS.md).
+
+### Live Sandbox Verification
+
+Beyond the 30-scenario harness (which runs against recording fakes), we ran a full end-to-end offer → book → verify → cancel loop against the **real Duffel test API** (`api.duffel.com/air`) via [`scripts/manual_booking.py`](scripts/manual_booking.py). All five HTTP calls returned 2xx:
+
+| Step | Endpoint | Result |
+|------|----------|--------|
+| 1 | `POST /air/offer_requests` (SFO → JFK) | 61 offers returned |
+| 2 | `POST /air/orders` | Order `ord_0000BANKiJbrIsrpzgR6Qq` created, booking ref `3ZPLMP` |
+| 3 | `GET /air/orders/{id}` | Passenger + itinerary verified |
+| 4 | `POST /air/order_cancellations` | Refund quoted (USD 171.89) |
+| 5 | `POST /air/order_cancellations/{id}/actions/confirm` | Cancellation confirmed |
+
+Duffel dashboard evidence:
+
+![Duffel dashboard showing order 3ZPLMP created and cancelled in our test account](docs/duffel_live.png)
+
+This proves the fake↔real client contract holds: the same code path that runs 30/30 in CI also drives a real supplier round-trip.
 
 ---
 

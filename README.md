@@ -1,9 +1,10 @@
 # ✈️ Rebound — Autonomous Travel Disruption Recovery Agent
 
+[![CI](https://github.com/abhishek2395/Rebound-Project-hackaton/actions/workflows/evals.yml/badge.svg?branch=main)](https://github.com/abhishek2395/Rebound-Project-hackaton/actions/workflows/evals.yml)
 [![Evaluation Suite](https://img.shields.io/badge/Evaluations-30%2F30%20Passing%20(100%25)-brightgreen?style=for-the-badge&logo=checkmarx)](EVAL_RESULTS.md)
 [![Apps Connected](https://img.shields.io/badge/Apps-Duffel%20%7C%20Google%20Calendar%20%7C%20Gmail%20%7C%20Twilio-0284c7?style=for-the-badge)](RELIABILITY_BRIEF.md)
 [![Architecture](https://img.shields.io/badge/Architecture-9--Step%20State%20Machine%20DAG-10b981?style=for-the-badge)](RELIABILITY_BRIEF.md)
-[![Async SLA](https://img.shields.io/badge/Webhook%20ACK-%3C50ms%20Async-purple?style=for-the-badge)](#)
+[![Live Duffel Sandbox](https://img.shields.io/badge/Duffel%20Sandbox-Verified-blueviolet?style=for-the-badge)](RELIABILITY_BRIEF.md#live-sandbox-verification)
 
 > **"Rebound has already fixed your trip by the time the airline emails you about the cancellation."**
 
@@ -159,7 +160,7 @@ All 30 scenarios run automated $\tau$-bench end-state assertions verifying the d
 ```
 ================================================================================
 TOTAL SCENARIOS: 30 | PASSED: 30 | FAILED: 0 | PASS RATE: 100.0%
-AVERAGE EXECUTION LATENCY: 2.4ms (in-memory) / <150ms (live network)
+AVERAGE EXECUTION LATENCY: 2.4ms (in-memory fakes) — live sandbox latency dominated by Duffel round-trip
 ================================================================================
 ```
 
