@@ -229,27 +229,33 @@ class DuffelClient(BaseClient):
                 passenger_email=profile.email,
             )
 
-        with httpx.Client(timeout=self.timeout) as client:
-            if hold_order_id:
-                # Pay for existing held order
-                payment_payload = {
-                    "data": {
-                        "order_id": hold_order_id,
-                        "payment": {
-                            "type": "balance",
-                            "currency": "USD",
-                            "amount": "500.00",
-                        },
-                    }
+        if hold_order_id:
+            # Pay for existing held order. Duffel requires the payment amount to
+            # exactly match the order's outstanding total, so fetch the held
+            # order first rather than assuming a fixed value.
+            hold_details = self.get_order(hold_order_id)
+            pay_amount = str(hold_details.get("total_amount") or "500.00")
+            pay_currency = hold_details.get("total_currency", "USD")
+            payment_payload = {
+                "data": {
+                    "order_id": hold_order_id,
+                    "payment": {
+                        "type": "balance",
+                        "currency": pay_currency,
+                        "amount": pay_amount,
+                    },
                 }
+            }
+            with httpx.Client(timeout=self.timeout) as client:
                 resp = client.post(
                     f"{DUFFEL_API_URL}/payments",
                     headers=self.headers,
                     json=payment_payload,
                 )
                 data = self._handle_response_status(resp, "payments.create")
-                order_id = hold_order_id
-            else:
+            order_id = hold_order_id
+        else:
+            with httpx.Client(timeout=self.timeout) as client:
                 # Direct booking flow
                 name_parts = profile.name.split()
                 payload = {
@@ -302,7 +308,7 @@ class DuffelClient(BaseClient):
             data = self._handle_response_status(resp, "orders.get")
         return data.get("data", {})
 
-    def request_cancellation_quote(self, order_id: str) -> CancellationQuote:
+    def request_cancellation_quote(self, order_id: str, original_amount: float = 0.0) -> CancellationQuote:
         """Step 1 of Duffel cancellation: POST /air/order_cancellations."""
         if self.dry_run:
             return CancellationQuote(

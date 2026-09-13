@@ -152,6 +152,20 @@ class Database:
                 return d
             return None
 
+    def get_pending_approval_by_event_id(self, event_id: str) -> Optional[Dict[str, Any]]:
+        """Fetches a pending approval row by its primary key (event_id)."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM pending_approvals WHERE event_id = ?",
+                (event_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                d = dict(row)
+                d["options"] = json.loads(d["options_json"])
+                return d
+            return None
+
     def resolve_pending_approval(self, event_id: str, status: str) -> None:
         with self._get_connection() as conn:
             conn.execute("UPDATE pending_approvals SET status = ? WHERE event_id = ?", (status, event_id))

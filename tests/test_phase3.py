@@ -147,9 +147,26 @@ class TestPhase3(unittest.TestCase):
         self.assertEqual(record.chosen_offer_id, "off_over")
         self.assertEqual(record.cost_delta_usd, 450.00)
 
-        # Verify that hold order was created first
+        # Verify that a hold order was created before the booking was confirmed
+        # (Hold-Order Pattern: lock price/inventory, then convert the SAME hold
+        # into the paid booking once the traveler approves via SMS -- it must
+        # not be left dangling in "hold" status once approval completes).
+        call_methods = [c["method"] for c in duffel.calls]
+        self.assertIn("create_hold_order", call_methods, "Hold order must be created before SMS approval")
+        self.assertIn("confirm_booking", call_methods)
+        self.assertLess(
+            call_methods.index("create_hold_order"),
+            call_methods.index("confirm_booking"),
+            "Hold order must lock price before SMS approval",
+        )
         hold_orders = [o for o in duffel.orders.values() if o.get("status") == "hold"]
-        self.assertEqual(len(hold_orders), 1, "Hold order must lock price before SMS approval")
+        self.assertEqual(len(hold_orders), 0, "Hold order must be converted into the confirmed booking, not abandoned")
+        confirmed_orders = [oid for oid, o in duffel.orders.items() if o.get("status") == "confirmed"]
+        self.assertEqual(len(confirmed_orders), 1)
+        self.assertTrue(
+            confirmed_orders[0].startswith("ord_hold_"),
+            "Confirmed booking must reuse the original hold order id, not mint a new one",
+        )
         self.assertEqual(len(gmail.sent_emails), 1)
 
     # -------------------------------------------------------------------------

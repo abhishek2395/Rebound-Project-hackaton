@@ -252,6 +252,7 @@ class ReboundAgent:
             cost_delta=cost_delta,
             reasoning=mandate_reason,
             alternatives=alternatives,
+            hold_order_id=None,  # Auto-book path never creates a hold order.
         )
 
     # -------------------------------------------------------------------------
@@ -305,8 +306,17 @@ class ReboundAgent:
                 reasoning="SMS gateway unavailable; escalated approval via email.",
             )
 
-        # Record pending state in SQLite
-        options_dicts = [{"id": o.id, "carrier": o.carrier, "total_amount": o.total_amount} for o in top_2]
+        # Record pending state in SQLite. Store enough of each offer (not just the
+        # thin id/carrier/total_amount used for the SMS body) that a brand-new
+        # ReboundAgent instance -- with no in-memory ranked_offers -- can fully
+        # reconstruct FlightOffer objects later when the real Twilio webhook
+        # reply arrives (see resume_with_sms_reply).
+        rich_fields = {
+            "id", "carrier", "flight_number", "origin", "destination",
+            "departs_at", "arrives_at", "total_amount", "currency",
+            "segments", "cabin_class",
+        }
+        options_dicts = [o.model_dump(mode="json", include=rich_fields) for o in top_2]
         self.db.save_pending_approval(
             event_id=event.event_id,
             run_id=self.run_id,
@@ -318,7 +328,10 @@ class ReboundAgent:
 
         # If an SMS reply is already provided (e.g. In eval harness or fast reply)
         if sms_reply:
-            return self.resume_with_sms_reply(event.event_id, sms_reply, deadline, ranked_offers)
+            return self.resume_with_sms_reply(
+                event.event_id, sms_reply, deadline, ranked_offers,
+                hold_order_id=hold_order.order_id,
+            )
 
         # In live production, agent pauses here until Twilio webhook hits /sms
         self.tracer.log_entry(
@@ -343,9 +356,27 @@ class ReboundAgent:
         reply: str,
         deadline: Optional[datetime] = None,
         ranked_offers: Optional[List[FlightOffer]] = None,
+        hold_order_id: Optional[str] = None,
     ) -> DecisionRecord:
-        """Resumes execution when a traveler sends an SMS reply."""
+        """
+        Resumes execution when a traveler sends an SMS reply.
+
+        This must be self-sufficient: in production this is called on a BRAND
+        NEW ReboundAgent instance (created fresh by the /sms webhook handler),
+        so it cannot rely on ranked_offers/deadline/hold_order_id still being
+        present on the call stack -- they arrive as None. When that happens we
+        reload everything we need from the pending_approvals row that
+        _handle_approval_flow persisted to SQLite.
+        """
         clean_reply = reply.strip().upper()
+
+        if ranked_offers is None:
+            pending = self.db.get_pending_approval_by_event_id(event_id)
+            if pending:
+                ranked_offers = [FlightOffer(**opt) for opt in pending["options"]]
+                if hold_order_id is None:
+                    hold_order_id = pending.get("hold_order_id")
+
         self.tracer.log_entry(
             step=f"approval:received:{clean_reply}",
             tool="twilio.inbound_webhook",
@@ -383,11 +414,12 @@ class ReboundAgent:
                     type=DisruptionType.CANCELLED,
                     flight=chosen.raw_payload or {"carrier": chosen.carrier, "number": "ZZ", "origin": "LHR", "destination": "JFK", "scheduled_departure": chosen.departs_at, "scheduled_arrival": chosen.arrives_at},
                 ) if not ranked_offers else None,
-                deadline=deadline or chosen.arrives_at + timedelta(hours=4),
+                deadline=deadline or chosen.arrives_at + timedelta(hours=self.profile.default_deadline_buffer_hours),
                 chosen_offer=chosen,
                 cost_delta=cost_delta,
                 reasoning=f"Approved by traveler via SMS (Option {clean_reply}).",
                 alternatives=alts,
+                hold_order_id=hold_order_id,
             )
             record.action = ActionType.ASK_THEN_BOOK
             return record
@@ -407,6 +439,7 @@ class ReboundAgent:
         cost_delta: float,
         reasoning: str,
         alternatives: List[str],
+        hold_order_id: Optional[str] = None,
     ) -> DecisionRecord:
         """
         Executes irreversible actions strictly in safe order:
@@ -420,7 +453,7 @@ class ReboundAgent:
         # Step 7: Act - Confirm Booking
         booking: Optional[ConfirmedBooking] = None
         with self.tracer.span("act", "duffel.orders.confirm", {"offer_id": chosen_offer.id}) as s:
-            booking = self.duffel.confirm_booking(chosen_offer.id, self.profile)
+            booking = self.duffel.confirm_booking(chosen_offer.id, self.profile, hold_order_id=hold_order_id)
             s["summary"] = f"Booked order {booking.order_id} (Ref: {booking.booking_reference})"
 
         # Step 8: Verify - Check order integrity

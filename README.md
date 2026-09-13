@@ -76,10 +76,10 @@ When an airline flight is cancelled or delayed, travelers face an operational ni
 
 ## 🛡️ Core Production Invariants
 
-1. **"LLM Proposes, Deterministic Code Disposes":**
-   LLMs are used exclusively for semantic ranking and human-facing message synthesis. Hard constraints (deadlines, layover limits, spend ceilings) are guarded by deterministic Python code.
+1. **Deterministic by design:**
+   Ranking is a transparent, auditable heuristic — not a model call — so a traveler's spend decisions never depend on LLM judgment. Hard constraints (deadlines, layover limits, spend ceilings) are guarded by the same deterministic Python code.
 2. **The Hold-Order Pattern (Zero Expiry Failures):**
-   When human approval is needed via SMS, Rebound places a Duffel Hold Order before sending the text, locking the seat and freezing the price for up to 24 hours.
+   When human approval is needed via SMS, Rebound places a Duffel Hold Order before sending the text, locking the seat and freezing the price. When the traveler replies, that exact hold is converted into the confirmed ticket — same order ID throughout — whether the reply comes back in the same process or, as in production, through a fresh process reloading state from the database.
 3. **Strict Irreversible Ordering (`Book` $\to$ `Verify` $\to$ `Cancel Old`):**
    Old tickets are only cancelled after verifying the new ticket exists via Duffel `GET`. If verification fails, cancellation is aborted, preserving the traveler's original flight.
 4. **Idempotent Ingress & Sub-50ms ACK:**

@@ -145,9 +145,13 @@ class FakeDuffel(BaseClient):
             if rule.get("trigger") == "offer_expired":
                 raise NonRetryableAPIError("offer_expired: selected offer is no longer valid", status_code=400)
 
-        order_id = f"ord_{offer_id}_{int(datetime.now(timezone.utc).timestamp())}"
-        if simulate_verify_mismatch:
-            order_id = "ord_corrupted_mismatch"
+        converting_hold = bool(hold_order_id and hold_order_id in self.orders)
+        if converting_hold:
+            order_id = hold_order_id
+        else:
+            order_id = f"ord_{offer_id}_{int(datetime.now(timezone.utc).timestamp())}"
+            if simulate_verify_mismatch:
+                order_id = "ord_corrupted_mismatch"
 
         matching = [o for o in self.available_offers if o.id == offer_id]
         amount = matching[0].total_amount if matching else 500.00
@@ -164,10 +168,18 @@ class FakeDuffel(BaseClient):
             confirmed_at=datetime.now(timezone.utc),
         )
 
-        self.orders[order_id] = {
-            **booking.model_dump(),
-            "status": "confirmed",
-        }
+        if converting_hold:
+            # Convert the existing hold order in place rather than minting a new one.
+            self.orders[order_id] = {
+                **self.orders[order_id],
+                **booking.model_dump(),
+                "status": "confirmed",
+            }
+        else:
+            self.orders[order_id] = {
+                **booking.model_dump(),
+                "status": "confirmed",
+            }
         self.calls.append({
             "method": "confirm_booking",
             "order_id": order_id,
