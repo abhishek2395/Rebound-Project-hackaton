@@ -1,0 +1,72 @@
+{
+  "id": "S28_sms_api_down_when_ask_needed",
+  "description": "Twilio 500 on ask -> escalates via email",
+  "profile": {
+    "traveler_id": "alex",
+    "name": "Alex Rivera",
+    "email": "alex@example.com",
+    "phone": "+15550000001",
+    "preferences": {
+      "preferred_airlines": [
+        "ZZ"
+      ],
+      "max_layovers": 1,
+      "seat": "aisle",
+      "cabin": "economy",
+      "avoid_redeye": true
+    },
+    "mandate": {
+      "spend_ceiling_usd": 800.0,
+      "approval_threshold_usd": 300.0,
+      "auto_book": true
+    },
+    "contacts": [
+      {
+        "name": "Sam",
+        "relation": "pickup",
+        "phone": "+15550000002",
+        "email": "sam@example.com"
+      }
+    ],
+    "default_deadline_buffer_hours": 6.0
+  },
+  "calendar": {
+    "deadline": "2026-09-15T09:00:00Z"
+  },
+  "event": {
+    "event_id": "evt_s28",
+    "type": "cancelled",
+    "order_id": "ord_s28",
+    "flight": {
+      "carrier": "ZZ",
+      "number": "ZZ123",
+      "origin": "LHR",
+      "destination": "JFK",
+      "scheduled_departure": "2026-09-14T10:00:00Z",
+      "scheduled_arrival": "2026-09-14T13:00:00Z"
+    }
+  },
+  "mock_duffel": {
+    "offers": [
+      {
+        "id": "off_over",
+        "carrier": "ZZ",
+        "flight_number": "ZZ202",
+        "departs_at": "2026-09-14T16:40:00Z",
+        "arrives_at": "2026-09-14T20:30:00Z",
+        "total_amount": 830.0,
+        "segments": 1,
+        "cabin_class": "economy"
+      }
+    ],
+    "failures": []
+  },
+  "mock_twilio": {
+    "injected_failure": "500"
+  },
+  "sms_reply": null,
+  "expected": {
+    "action": "escalate",
+    "bookings_created": 0
+  }
+}

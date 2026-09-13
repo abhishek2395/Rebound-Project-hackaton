@@ -1,0 +1,38 @@
+name: Evaluation Suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  evals:
+    name: Run 30-scenario harness (DRY_RUN, fakes only)
+    runs-on: ubuntu-latest
+    env:
+      DRY_RUN: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run 30-scenario evaluation harness
+        run: python evals/test_scenarios.py
+
+      - name: Upload EVAL_RESULTS.md
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: EVAL_RESULTS.md

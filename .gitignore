@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables & secrets (NEVER COMMIT)
+.env
+.env.local
+token.json
+credentials.json
+
+# Databases & local state
+*.db
+*.db-wal
+*.db-shm
+rebound.db
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Traces & test artifacts
+traces/*.jsonl
+!traces/sample_run.jsonl
+.pytest_cache/
+evals/junit.xml
+
+# macOS clutter
+.DS_Store
+

@@ -1,0 +1,70 @@
+{
+  "id": "S25_auto_book_off",
+  "description": "mandate.auto_book=false -> asks even if within threshold",
+  "profile": {
+    "traveler_id": "alex",
+    "name": "Alex Rivera",
+    "email": "alex@example.com",
+    "phone": "+15550000001",
+    "preferences": {
+      "preferred_airlines": [
+        "ZZ"
+      ],
+      "max_layovers": 1,
+      "seat": "aisle",
+      "cabin": "economy",
+      "avoid_redeye": true
+    },
+    "mandate": {
+      "spend_ceiling_usd": 800.0,
+      "approval_threshold_usd": 300.0,
+      "auto_book": false
+    },
+    "contacts": [
+      {
+        "name": "Sam",
+        "relation": "pickup",
+        "phone": "+15550000002",
+        "email": "sam@example.com"
+      }
+    ],
+    "default_deadline_buffer_hours": 6.0
+  },
+  "calendar": {
+    "deadline": "2026-09-15T09:00:00Z"
+  },
+  "event": {
+    "event_id": "evt_s25",
+    "type": "cancelled",
+    "order_id": "ord_s25",
+    "flight": {
+      "carrier": "ZZ",
+      "number": "ZZ123",
+      "origin": "LHR",
+      "destination": "JFK",
+      "scheduled_departure": "2026-09-14T10:00:00Z",
+      "scheduled_arrival": "2026-09-14T13:00:00Z"
+    }
+  },
+  "mock_duffel": {
+    "offers": [
+      {
+        "id": "off_a",
+        "carrier": "ZZ",
+        "flight_number": "ZZ201",
+        "departs_at": "2026-09-14T14:10:00Z",
+        "arrives_at": "2026-09-14T17:05:00Z",
+        "total_amount": 500.0,
+        "segments": 1,
+        "cabin_class": "economy"
+      }
+    ],
+    "failures": []
+  },
+  "sms_reply": "1",
+  "expected": {
+    "action": "ask_then_book",
+    "chosen_offer_id": "off_a",
+    "bookings_created": 1
+  }
+}

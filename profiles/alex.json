@@ -1,0 +1,28 @@
+{
+  "traveler_id": "alex",
+  "name": "Alex Rivera",
+  "email": "alex@example.com",
+  "phone": "+15550000001",
+  "preferences": {
+    "preferred_airlines": ["ZZ"],
+    "max_layovers": 1,
+    "seat": "aisle",
+    "cabin": "economy",
+    "avoid_redeye": true
+  },
+  "mandate": {
+    "spend_ceiling_usd": 800.0,
+    "approval_threshold_usd": 300.0,
+    "auto_book": true
+  },
+  "contacts": [
+    {
+      "name": "Sam",
+      "relation": "pickup",
+      "phone": "+15550000002",
+      "email": "sam@example.com"
+    }
+  ],
+  "default_deadline_buffer_hours": 4.0
+}
+

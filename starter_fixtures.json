@@ -1,0 +1,163 @@
+{
+  "_readme": "Starter fixtures for Rebound evals. Split into one file per scenario under evals/fixtures/. Fill in S03..S30 from the playbook table using this shape.",
+  "profile": {
+    "traveler_id": "alex",
+    "name": "Alex Rivera",
+    "email": "alex@example.com",
+    "phone": "+15550000001",
+    "preferences": {
+      "preferred_airlines": ["ZZ"],
+      "max_layovers": 1,
+      "seat": "aisle",
+      "cabin": "economy",
+      "avoid_redeye": true
+    },
+    "mandate": {
+      "spend_ceiling_usd": 800,
+      "approval_threshold_usd": 300,
+      "auto_book": true
+    },
+    "contacts": [
+      { "name": "Sam", "relation": "pickup", "phone": "+15550000002" }
+    ]
+  },
+  "base_event": {
+    "event_id": "REPLACE",
+    "type": "cancelled",
+    "order_id": "ord_original",
+    "flight": {
+      "carrier": "ZZ",
+      "number": "ZZ123",
+      "origin": "LHR",
+      "destination": "JFK",
+      "scheduled_departure": "2026-09-14T10:00:00Z",
+      "scheduled_arrival": "2026-09-14T13:00:00Z"
+    },
+    "delay_minutes": null,
+    "reason": "operational"
+  },
+  "original_order_total_usd": 380.0,
+  "scenarios": [
+    {
+      "id": "S01_cancelled_easy",
+      "description": "Cancelled; a good same-day option exists within the approval threshold. Should book without asking.",
+      "profile": "alex",
+      "calendar": { "deadline": "2026-09-15T09:00:00Z", "conflicts": [] },
+      "event": { "event_id": "evt_s01", "type": "cancelled", "delay_minutes": null },
+      "mock_duffel": {
+        "offers": [
+          { "id": "off_a", "carrier": "ZZ", "total_amount": "500.00", "departs_at": "2026-09-14T14:10:00Z", "arrives_at": "2026-09-14T17:05:00Z", "segments": 1 },
+          { "id": "off_b", "carrier": "ZZ", "total_amount": "460.00", "departs_at": "2026-09-14T16:40:00Z", "arrives_at": "2026-09-14T22:30:00Z", "segments": 2 }
+        ],
+        "failures": []
+      },
+      "sms_reply": null,
+      "expected": {
+        "action": "book",
+        "chosen_offer_id": "off_a",
+        "bookings_created": 1,
+        "old_order_cancelled": true,
+        "calendar_updated": true,
+        "emails_sent": ["itinerary"],
+        "sms_sent_to_traveler": ["summary"],
+        "trace_contains": ["ingest", "context", "search", "rank", "decide", "act", "verify", "report"]
+      }
+    },
+    {
+      "id": "S02_cancelled_over_threshold_yes",
+      "description": "Best option costs more than the approval threshold but under the ceiling. Agent must ask; traveler replies 1; agent books option 1.",
+      "profile": "alex",
+      "calendar": { "deadline": "2026-09-15T09:00:00Z", "conflicts": [] },
+      "event": { "event_id": "evt_s02", "type": "cancelled", "delay_minutes": null },
+      "mock_duffel": {
+        "offers": [
+          { "id": "off_a", "carrier": "ZZ", "total_amount": "830.00", "departs_at": "2026-09-14T14:10:00Z", "arrives_at": "2026-09-14T17:05:00Z", "segments": 1 },
+          { "id": "off_b", "carrier": "ZZ", "total_amount": "690.00", "departs_at": "2026-09-14T16:40:00Z", "arrives_at": "2026-09-14T20:30:00Z", "segments": 1 }
+        ],
+        "failures": []
+      },
+      "sms_reply": "1",
+      "expected": {
+        "action": "ask_then_book",
+        "chosen_offer_id": "off_a",
+        "bookings_created": 1,
+        "old_order_cancelled": true,
+        "calendar_updated": true,
+        "emails_sent": ["itinerary"],
+        "sms_sent_to_traveler": ["approval_request", "summary"],
+        "trace_contains": ["decide:ask", "approval:received:1", "act"]
+      }
+    },
+    {
+      "id": "S09_no_options_before_deadline",
+      "description": "Every offer arrives after the deadline. Agent must escalate and must not book anything.",
+      "profile": "alex",
+      "calendar": { "deadline": "2026-09-14T15:00:00Z", "conflicts": [] },
+      "event": { "event_id": "evt_s09", "type": "cancelled", "delay_minutes": null },
+      "mock_duffel": {
+        "offers": [
+          { "id": "off_a", "carrier": "ZZ", "total_amount": "420.00", "departs_at": "2026-09-14T14:10:00Z", "arrives_at": "2026-09-14T17:05:00Z", "segments": 1 },
+          { "id": "off_b", "carrier": "ZZ", "total_amount": "390.00", "departs_at": "2026-09-14T18:00:00Z", "arrives_at": "2026-09-14T21:00:00Z", "segments": 1 }
+        ],
+        "failures": []
+      },
+      "sms_reply": null,
+      "expected": {
+        "action": "escalate",
+        "chosen_offer_id": null,
+        "bookings_created": 0,
+        "old_order_cancelled": false,
+        "calendar_updated": false,
+        "emails_sent": [],
+        "sms_sent_to_traveler": ["escalation"],
+        "trace_contains": ["rank:0_survivors", "decide:escalate"]
+      }
+    },
+    {
+      "id": "S10_duplicate_webhook",
+      "description": "The S01 event is delivered twice. Exactly one booking must exist; the second run is skipped as a duplicate.",
+      "profile": "alex",
+      "calendar": { "deadline": "2026-09-15T09:00:00Z", "conflicts": [] },
+      "event": { "event_id": "evt_s10", "type": "cancelled", "delay_minutes": null },
+      "deliver_times": 2,
+      "mock_duffel": {
+        "offers": [
+          { "id": "off_a", "carrier": "ZZ", "total_amount": "500.00", "departs_at": "2026-09-14T14:10:00Z", "arrives_at": "2026-09-14T17:05:00Z", "segments": 1 }
+        ],
+        "failures": []
+      },
+      "sms_reply": null,
+      "expected": {
+        "action": "book",
+        "chosen_offer_id": "off_a",
+        "bookings_created": 1,
+        "runs": 2,
+        "second_run_status": "skipped_duplicate",
+        "trace_contains": ["ingest:skipped_duplicate"]
+      }
+    },
+    {
+      "id": "S11_duffel_500_twice",
+      "description": "Duffel offer request fails with 500 twice, then succeeds. Agent retries with backoff and books.",
+      "profile": "alex",
+      "calendar": { "deadline": "2026-09-15T09:00:00Z", "conflicts": [] },
+      "event": { "event_id": "evt_s11", "type": "cancelled", "delay_minutes": null },
+      "mock_duffel": {
+        "offers": [
+          { "id": "off_a", "carrier": "ZZ", "total_amount": "500.00", "departs_at": "2026-09-14T14:10:00Z", "arrives_at": "2026-09-14T17:05:00Z", "segments": 1 }
+        ],
+        "failures": [
+          { "call": "offer_requests.create", "sequence": ["500", "500", "ok"] }
+        ]
+      },
+      "sms_reply": null,
+      "expected": {
+        "action": "book",
+        "chosen_offer_id": "off_a",
+        "bookings_created": 1,
+        "retries_observed": 2,
+        "trace_contains": ["search:retry", "search:retry", "search:ok"]
+      }
+    }
+  ]
+}
