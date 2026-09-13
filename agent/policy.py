@@ -4,7 +4,7 @@ Enforces deterministic hard constraints and mandate rules in code, not prompts.
 "The LLM proposes; code disposes."
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
 from agent.models import (
@@ -85,12 +85,18 @@ def filter_survivors(
       2. Layovers <= max_layovers
       3. Cabin class is equal to or an upgrade from profile preference
     """
-    latest_allowed_arrival = deadline - timedelta(minutes=buffer_minutes)
+    # Normalize to timezone-aware UTC — naive datetimes get treated as UTC.
+    # Live Duffel returns offsets (e.g. -05:00); fixtures may load naive.
+    # Comparing them raw raises TypeError, so we canonicalize here.
+    def _utc(dt: datetime) -> datetime:
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+    latest_allowed_arrival = _utc(deadline) - timedelta(minutes=buffer_minutes)
     survivors: List[FlightOffer] = []
 
     for offer in offers:
         # Constraint 1: Must arrive before the deadline buffer
-        if offer.arrives_at > latest_allowed_arrival:
+        if _utc(offer.arrives_at) > latest_allowed_arrival:
             continue
 
         # Constraint 2: Layover limit
