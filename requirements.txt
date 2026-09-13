@@ -14,8 +14,12 @@ python-multipart>=0.0.9  # required by FastAPI's Form(...) parsing on POST /sms
 # Test
 pytest>=7.4
 
-# Optional live integrations — only needed for `pytest -m live`
-# Uncomment when running the real-sandbox smoke tests.
-# google-api-python-client>=2.120
-# google-auth-oauthlib>=1.2
+# Live Google Workspace integration (Calendar + Gmail).
+# Only needed when running scripts/setup_google_oauth.py and manual_{calendar,gmail}.py
+# — the 30-scenario harness itself runs against fakes without these.
+google-api-python-client>=2.120
+google-auth-oauthlib>=1.2
+
+# Optional live Twilio integration.
+# twilio>=9.0
 # twilio>=9.0

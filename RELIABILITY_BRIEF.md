@@ -152,6 +152,41 @@ Duffel dashboard evidence:
 
 This proves the fake↔real client contract holds: the same code path that runs 30/30 in CI also drives a real supplier round-trip.
 
+#### Google Calendar — live-verified via [`scripts/manual_calendar.py`](scripts/manual_calendar.py)
+
+Full CRUD loop against `calendar.googleapis.com` under real user OAuth. Every step returned 2xx:
+
+| Step | Endpoint | Result |
+|------|----------|--------|
+| 0 | `events.list` (privateExtendedProperty filter) | Cleaned up stale test events |
+| 1 | `events.insert` | Created event `mq632upad2ch19i86kte97i8gc` |
+| 2 | `events.patch` | Shifted start +30 min, updated summary |
+| 3 | `events.get` | Verified patched start matches expected (within 60 s tolerance across TZ formats) |
+| 4 | `events.delete` | Cleanup confirmed — nothing left on the calendar |
+
+Same pattern the agent uses at Step 2 (read deadline) and Step 8c (patch flight card).
+
+#### Gmail — live-verified via [`scripts/manual_gmail.py`](scripts/manual_gmail.py)
+
+Draft round-trip against `gmail.googleapis.com` under the same OAuth token. All 2xx:
+
+| Step | Endpoint | Result |
+|------|----------|--------|
+| 1 | `users.drafts.create` | Draft `r2812918889763061865` created with the real itinerary MIME template |
+| 2 | `users.drafts.get` | Subject verified: `[Rebound test] Rebooked: ZZ201 SFO→JFK` |
+| 3 | `users.drafts.delete` | Draft removed — nothing sent, nothing left behind |
+
+The manual test creates a Draft (not a Send) to avoid any real email leaving the account. Rebound's Step 8d code path also creates the EU261 compensation claim as a draft, using the identical MIME builder.
+
+#### Coverage snapshot
+
+| App | Client | Fakes (30 fixtures) | Live sandbox |
+|---|---|---|---|
+| Duffel | `clients/duffel.py` | ✅ | ✅ order `3ZPLMP` |
+| Google Calendar | `clients/gcal.py` | ✅ | ✅ event `mq632u…evfqg` |
+| Gmail | `clients/gmail.py` | ✅ | ✅ draft `r2812…61865` |
+| Twilio SMS | `clients/twilio_sms.py` | ✅ | Pending live smoke test |
+
 ---
 
 ## 6. Failures Found During the Build
