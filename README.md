@@ -30,48 +30,7 @@ When an airline flight is cancelled or delayed, travelers face an operational ni
 
 ## ⚡ What Rebound Does Across 4 Apps
 
-```
-                     ┌────────────────────────────────────────────────────────┐
-                     │            Incoming Disruption Webhook                 │
-                     └───────────────────────────┬────────────────────────────┘
-                                                 │ (FastAPI <50ms ACK)
-                                                 ▼
-                     ┌────────────────────────────────────────────────────────┐
-                     │          1. Ingest & SQLite WAL Deduplication          │
-                     └───────────────────────────┬────────────────────────────┘
-                                                 │
-          ┌──────────────────────────────────────┼──────────────────────────────────────┐
-          ▼                                      ▼                                      ▼
-┌───────────────────┐                  ┌───────────────────┐                  ┌───────────────────┐
-│  Google Calendar  │                  │ Duffel NDC Flight │                  │    Twilio SMS     │
-│ commitment lookup │                  │ search & hold seat│                  │ approval gateway  │
-└─────────┬─────────┘                  └─────────┬─────────┘                  └─────────┬─────────┘
-          │                                      │                                      │
-          └──────────────────────────────────────┼──────────────────────────────────────┘
-                                                 │
-                                                 ▼
-                     ┌────────────────────────────────────────────────────────┐
-                     │   Deterministic Mandate Evaluation (Python Policy)     │
-                     │   - Delta <= $300: Auto-Book                           │
-                     │   - Delta $301-$800: Hold-Order + SMS Approval         │
-                     │   - Delta > $800: Clean Escalation (0 Bookings)        │
-                     └───────────────────────────┬────────────────────────────┘
-                                                 │
-                                                 ▼
-                     ┌────────────────────────────────────────────────────────┐
-                     │      Irreversible Action Ordering (Book -> Verify)     │
-                     │      1. Duffel Confirm Booking                         │
-                     │      2. Duffel GET Order Verification                  │
-                     │      3. Safe Cancellation of Old Ticket                │
-                     └───────────────────────────┬────────────────────────────┘
-                                                 │
-          ┌──────────────────────────────────────┼──────────────────────────────────────┐
-          ▼                                      ▼                                      ▼
-┌───────────────────┐                  ┌───────────────────┐                  ┌───────────────────┐
-│  Google Calendar  │                  │       Gmail       │                  │  Pickup Contact   │
-│  flight card patch│                  │ itinerary + EU261 │                  │ ETA notification  │
-└───────────────────┘                  └───────────────────┘                  └───────────────────┘
-```
+![Rebound 9-step agent DAG: ingest, context, assess, search, rank, decide, act, verify, report, spanning Duffel, Google Calendar, Gmail, and Twilio, with the five safety invariants proven by the 30-scenario harness](docs/architecture.svg)
 
 ---
 
