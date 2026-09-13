@@ -32,3 +32,6 @@ evals/junit.xml
 
 # Design tooling scratch
 .impeccable/
+
+# Ephemeral seed IDs from scripts/seed_demo_state.py
+.demo_seeds.json

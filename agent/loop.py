@@ -568,7 +568,7 @@ class ReboundAgent:
         with self.tracer.span("calendar_update", "calendar.patch_trip_event", {"booking_ref": booking.booking_reference}) as s:
             try:
                 self.calendar.patch_trip_event(
-                    event_id="trip_flight_event",
+                    event_id=os.getenv("DEMO_CALENDAR_EVENT_ID", "trip_flight_event"),
                     new_start=chosen_offer.departs_at,
                     new_end=chosen_offer.arrives_at,
                     booking_ref=booking.booking_reference,

@@ -251,6 +251,13 @@ async def trigger_demo_event(
         if "S10" not in scenario:
             event_data["event_id"] = f"evt_demo_{scenario.lower()}_{int(datetime.now(timezone.utc).timestamp())}"
 
+        # DEMO_ORIGINAL_ORDER_ID lets a live demo point at a real Duffel
+        # order that scripts/seed_demo_state.py booked, so the cancel-old
+        # step actually succeeds instead of 404'ing on the fixture's stub.
+        seeded_order_id = os.getenv("DEMO_ORIGINAL_ORDER_ID")
+        if seeded_order_id:
+            event_data["order_id"] = seeded_order_id
+
         event = DisruptionEvent.model_validate(event_data)
         profile = TravelerProfile.model_validate(data["profile"]) if "profile" in data else None
 
