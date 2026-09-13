@@ -630,13 +630,22 @@ class ReboundAgent:
                     s["status"] = TraceStatus.RETRY
 
         # Step 9: Report & Summary SMS
+        # The traveler-facing summary is a nice-to-have; the flight is already
+        # booked, verified, calendar-patched, and email-sent by this point.
+        # A Twilio hiccup here (e.g. trial-account daily limit) must not crash
+        # the run and mask a successful booking.
         with self.tracer.span("report", "twilio.send_sms", {"to": self.profile.phone}) as s:
-            self.twilio.send_sms(
-                to_phone=self.profile.phone,
-                body=f"[Rebound] Rebooked on {flight_code(chosen_offer.carrier, chosen_offer.flight_number)} arriving {chosen_offer.arrives_at.strftime('%H:%M')}. Booking ref: {booking.booking_reference}. Itinerary emailed.",
-                sms_type="summary",
-            )
-            s["summary"] = "Final summary SMS dispatched."
+            try:
+                self.twilio.send_sms(
+                    to_phone=self.profile.phone,
+                    body=f"[Rebound] Rebooked on {flight_code(chosen_offer.carrier, chosen_offer.flight_number)} arriving {chosen_offer.arrives_at.strftime('%H:%M')}. Booking ref: {booking.booking_reference}. Itinerary emailed.",
+                    sms_type="summary",
+                )
+                s["summary"] = "Final summary SMS dispatched."
+            except Exception as e:
+                logger.warning("Summary SMS failed but booking stands: %s", e)
+                s["summary"] = f"Summary SMS error (non-fatal, booking preserved): {e}"
+                s["status"] = TraceStatus.RETRY
 
         record = DecisionRecord(
             event_id=event.event_id if event else "evt_resumed",

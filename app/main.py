@@ -103,10 +103,13 @@ def select_clients(
 
 
 def apply_phone_overrides(profile: TravelerProfile) -> TravelerProfile:
-    """Points SMS at real, Twilio-verified handsets without editing committed profiles."""
+    """Points SMS and email at real, verified endpoints without editing committed profiles."""
     traveler_phone = os.getenv("TRAVELER_PHONE")
     if traveler_phone:
         profile.phone = traveler_phone
+    traveler_email = os.getenv("TRAVELER_EMAIL")
+    if traveler_email:
+        profile.email = traveler_email
     pickup_phone = os.getenv("PICKUP_PHONE")
     if pickup_phone and profile.contacts:
         profile.contacts[0].phone = pickup_phone
