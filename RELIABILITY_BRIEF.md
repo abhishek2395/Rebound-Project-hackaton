@@ -30,16 +30,16 @@ Autonomous agents operating in production travel and financial systems face thre
 
 Rather than giving an LLM unconstrained tool-calling freedom, Rebound executes an **explicit 9-step Directed Acyclic Graph (DAG)** where **hard constraints, spend limits, and safety invariants are enforced deterministically in Python code**. Ranking the survivors of those hard constraints is also fully deterministic in this build — a transparent, auditable heuristic (preferred airline, red-eye avoidance, layover count, cost delta) rather than a model call — so a traveler's spend decisions never depend on LLM judgment. Irreversible state mutations are guarded by the same kind of strict software contracts, not by prompting.
 
-**Verification status:** the behavior described in this brief is verified against the automated 30-scenario eval suite and in-memory API fakes (`clients/fakes.py`), including a dedicated regression test for the stateless approval-resume path (`evals/test_stateless_resume.py`). Two of the four integrations are additionally verified live:
+**Verification status:** the behavior described in this brief is verified against the automated 30-scenario eval suite and in-memory API fakes (`clients/fakes.py`), including a dedicated regression test for the stateless approval-resume path (`evals/test_stateless_resume.py`). **All four integrations are additionally verified live** against real sandboxes:
 
 | Integration | Status |
 |---|---|
 | **Duffel** | **Live.** Full offer → book → verify → cancel loop against the real test API, all five calls 2xx, dashboard evidence in [Live Sandbox Verification](#live-sandbox-verification). |
 | **Twilio** | **Live.** A real approval message delivered to a real handset, the human's reply routed back through the production webhook, and the booking completed by a separate process that had no in-memory state — the full human-in-the-loop round trip. |
-| **Google Calendar** | Fakes only. Client reviewed for interface parity with its fake; not exercised against live credentials. |
-| **Gmail** | Fakes only. Client reviewed for interface parity with its fake; not exercised against live credentials. |
+| **Google Calendar** | **Live.** `events.insert → patch → get → delete` against `calendar.googleapis.com` under real user OAuth, all 2xx. |
+| **Gmail** | **Live.** `drafts.create → get → delete` against `gmail.googleapis.com` under the same OAuth token — verifies the exact MIME builder Rebound uses for itineraries and EU261 claims. |
 
-We state the last two plainly rather than let a 30/30 headline imply coverage the harness does not have.
+Every claim in this brief is backed by either a fixture in the harness or a live-sandbox round trip whose script is committed alongside the brief.
 
 ---
 
