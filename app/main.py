@@ -357,7 +357,7 @@ async def trigger_demo_event(
             "awaiting_sms_reply": twilio_is_live() and record.action.value == "ask",
         }
 
-    # Fallback default
+    # Fallback default (only reached when no fixture matches the scenario)
     event_id = f"evt_demo_{scenario.lower()}_{int(datetime.now(timezone.utc).timestamp())}"
     sample_event = DisruptionEvent(
         event_id=event_id,
@@ -367,15 +367,12 @@ async def trigger_demo_event(
             "number": "ZZ123",
             "origin": "LHR",
             "destination": "JFK",
-            "scheduled_departure": datetime.now(timezone.utc) + datetime.timedelta(hours=2),
-            "scheduled_arrival": datetime.now(timezone.utc) + datetime.timedelta(hours=10),
             "scheduled_departure": datetime.now(timezone.utc) + timedelta(hours=2),
             "scheduled_arrival": datetime.now(timezone.utc) + timedelta(hours=10),
         },
     )
     agent = ReboundAgent(db=db)
     record = agent.run(sample_event)
-    return {"record": record.model_dump(), "run_id": agent.run_id}
     return {"record": record.model_dump(), "run_id": agent.run_id, "scenario": scenario}
 
 
