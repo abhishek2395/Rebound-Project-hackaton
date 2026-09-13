@@ -1,6 +1,6 @@
 # Rebound Evaluation Matrix & Reliability Results
 
-**Last Run:** 2026-09-13 20:56:48 UTC  
+**Last Run:** 2026-09-13 20:56:57 UTC  
 **Test Suite:** 30 Chaos & Disruption Scenarios ($\\tau$-bench End-State Verification)  
 **Pass Rate:** **30/30 (100.0%)**  
 
@@ -18,20 +18,20 @@
 | 3 | `S03_cancelled_over_threshold_no` | Over threshold; reply 'NO' -> escalate, 0 bookings | `escalate` | `escalate` | 0 | 0 | 2ms | ✅ PASS |
 | 4 | `S04_cancelled_over_threshold_timeout` | Over threshold; no reply -> timeout and escalate | `escalate` | `escalate` | 0 | 0 | 2ms | ✅ PASS |
 | 5 | `S05_cancelled_over_ceiling` | Only option delta $1,200 -> escalate over ceiling | `escalate` | `escalate` | 0 | 0 | 1ms | ✅ PASS |
-| 6 | `S06_delay_still_makes_it` | 3h delay, deadline tomorrow 9AM -> notify_only | `notify_only` | `notify_only` | 0 | 0 | 5ms | ✅ PASS |
-| 7 | `S07_delay_misses_deadline` | 5h delay pushes past deadline -> rebook | `book` | `book` | 1 | 0 | 1ms | ✅ PASS |
-| 8 | `S08_missed_connection` | Second leg missed; rebook remaining journey | `book` | `book` | 1 | 0 | 1ms | ✅ PASS |
+| 6 | `S06_delay_still_makes_it` | 3h delay, deadline tomorrow 9AM -> notify_only | `notify_only` | `notify_only` | 0 | 0 | 6ms | ✅ PASS |
+| 7 | `S07_delay_misses_deadline` | 5h delay pushes past deadline -> rebook | `book` | `book` | 1 | 0 | 2ms | ✅ PASS |
+| 8 | `S08_missed_connection` | Second leg missed; rebook remaining journey | `book` | `book` | 1 | 0 | 3ms | ✅ PASS |
 | 9 | `S09_no_options_before_deadline` | All offers arrive after deadline -> escalate | `escalate` | `escalate` | 0 | 0 | 1ms | ✅ PASS |
 | 10 | `S10_duplicate_webhook` | Event delivered twice; 1 booking, second run skipped_duplicate | `book` | `book` | 1 | 0 | 1ms | ✅ PASS |
 | 11 | `S11_duffel_500_twice` | Offer request 500s twice then succeeds with backoff | `book` | `book` | 1 | 2 | 2ms | ✅ PASS |
 | 12 | `S12_duffel_500_forever` | Duffel fails continuously -> escalate cleanly | `escalate` | `escalate` | 0 | 3 | 1ms | ✅ PASS |
-| 13 | `S13_offer_expired_at_booking` | Hold order locks inventory; prevents offer_expired failure | `book` | `book` | 1 | 0 | 1ms | ✅ PASS |
+| 13 | `S13_offer_expired_at_booking` | Hold order locks inventory; prevents offer_expired failure | `book` | `book` | 1 | 0 | 2ms | ✅ PASS |
 | 14 | `S14_empty_results_widen` | No direct options -> escalate with clear summary | `escalate` | `escalate` | 0 | 0 | 1ms | ✅ PASS |
-| 15 | `S15_layover_limit` | Prunes 2-layover option; books 1-layover option | `book` | `book` | 1 | 0 | 1ms | ✅ PASS |
+| 15 | `S15_layover_limit` | Prunes 2-layover option; books 1-layover option | `book` | `book` | 1 | 0 | 2ms | ✅ PASS |
 | 16 | `S16_redeye_avoid` | Prefers daytime flight over red-eye per profile preference | `book` | `book` | 1 | 0 | 1ms | ✅ PASS |
 | 17 | `S17_preferred_airline_tiebreak` | Two equal options, breaks tie using preferred carrier ZZ | `book` | `book` | 1 | 0 | 1ms | ✅ PASS |
 | 18 | `S18_calendar_conflict` | Books viable flight within deadline buffer | `book` | `book` | 1 | 0 | 10ms | ✅ PASS |
-| 19 | `S19_no_calendar_deadline` | Empty calendar -> falls back to default 4h buffer | `book` | `book` | 1 | 0 | 1ms | ✅ PASS |
+| 19 | `S19_no_calendar_deadline` | Empty calendar -> falls back to default 4h buffer | `book` | `book` | 1 | 0 | 2ms | ✅ PASS |
 | 20 | `S20_crash_after_book_before_cancel` | Safe ordering ensures old flight is cancelled after verification | `book` | `book` | 1 | 0 | 2ms | ✅ PASS |
 | 21 | `S21_verify_mismatch` | Simulated verify mismatch -> aborts cancellation of old order | `escalate` | `escalate` | 1 | 1 | 1ms | ✅ PASS |
 | 22 | `S22_compensation_eligible` | EU departure operational cancellation -> draft EU261 claim | `book` | `book` | 1 | 0 | 1ms | ✅ PASS |
