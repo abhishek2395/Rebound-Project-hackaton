@@ -1,640 +1,818 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rebound — Multi-App AI Agent Visualizer</title>
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: '#ecfdf5',
-              500: '#10b981',
-              600: '#059669',
-              900: '#064e3b',
-            }
-          },
-          fontFamily: {
-            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    @keyframes pulse-subtle {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.85; transform: scale(1.02); }
-    }
-    .pulse-active { animation: pulse-subtle 2s infinite ease-in-out; }
-    .glass-card {
-      background: rgba(15, 23, 42, 0.75);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(51, 65, 85, 0.6);
-    }
-  </style>
+  <title>Rebound — Flight Recovery Board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ───────────────────────────────────────────────────────────────────────────
+   BOARD
+   The surface is a departure board, so it is built like one: a dark face,
+   hairline seams between slats, and lettering that never sits inside a card.
+   Hierarchy comes from scale and dimming, never from boxes or borders.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  --face:        #0b0a08;   /* the board itself */
+  --slat:        #141210;   /* a slat, one shade off the face */
+  --slat-lit:    #1b1815;   /* a slat carrying live content */
+  --seam:        #262220;   /* the gap between slats */
+
+  --bone:        #efe9dd;   /* printed lettering */
+  --bone-dim:    #8d867a;   /* lettering that has already happened */
+  --bone-ghost:  #4a453e;   /* a slat not yet flipped */
+
+  --amber:       #ffab19;   /* RESERVED: where the agent is now, and what it chose */
+  --amber-deep:  #b8760a;
+  --red:         #ff5a44;   /* RESERVED: aborted, refused, failed */
+
+  --pad:  clamp(16px, 3vw, 34px);
+  --rule: 1px solid var(--seam);
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--face);
+  color: var(--bone);
+  font-family: 'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+  /* the faint vertical banding of a real board face */
+  background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.014) 0 1px, transparent 1px 3px);
+}
+
+/* Browser surfaces belong to the design too. */
+::selection { background: var(--amber); color: #17120a; }
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: var(--face); }
+::-webkit-scrollbar-thumb { background: var(--seam); border: 3px solid var(--face); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #3a342f; }
+* { scrollbar-color: var(--seam) var(--face); scrollbar-width: thin; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+.board-type {
+  font-family: 'Barlow Condensed', 'Archivo Narrow', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+}
+.mono {
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── header strip ───────────────────────────────────────────────────────── */
+.strip {
+  display: flex; align-items: baseline; gap: clamp(12px, 2.5vw, 28px);
+  flex-wrap: wrap;
+  padding: 14px var(--pad);
+  border-bottom: var(--rule);
+  background: linear-gradient(180deg, #100e0c, var(--face));
+  position: sticky; top: 0; z-index: 40;
+}
+.wordmark {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700; text-transform: uppercase;
+  font-size: clamp(26px, 3.4vw, 40px);
+  letter-spacing: .06em; line-height: 1;
+  color: var(--bone); margin: 0;
+}
+.strip .sub {
+  font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--bone-dim); margin-left: auto; text-align: right;
+}
+.live {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--amber);
+}
+.live i {
+  width: 7px; height: 7px; border-radius: 99px; background: var(--amber);
+  box-shadow: 0 0 0 0 rgba(255,171,25,.55); animation: beat 2.4s infinite;
+}
+@keyframes beat {
+  0%   { box-shadow: 0 0 0 0 rgba(255,171,25,.5); }
+  70%  { box-shadow: 0 0 0 7px rgba(255,171,25,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,171,25,0); }
+}
+
+/* ── the flight rows: the emotional core ────────────────────────────────── */
+.flights { padding: clamp(20px, 3.4vw, 38px) var(--pad) clamp(14px, 2vw, 22px); }
+
+.colhead {
+  display: grid; grid-template-columns: var(--cols); gap: clamp(10px, 2vw, 26px);
+  font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--bone-ghost); padding-bottom: 9px; border-bottom: var(--rule);
+}
+.flight {
+  --cols: 6.2ch 1fr auto auto;
+  display: grid; grid-template-columns: var(--cols); gap: clamp(14px, 2.2vw, 30px);
+  align-items: baseline;
+  padding: clamp(12px, 1.7vw, 19px) 0;
+  border-bottom: var(--rule);
+}
+.colhead { --cols: 6.2ch 1fr auto auto; gap: clamp(14px, 2.2vw, 30px); }
+
+.flight .no,
+.flight .route,
+.flight .time {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600; text-transform: uppercase; line-height: .95;
+}
+.flight .no    { font-size: clamp(19px, 2.5vw, 28px); color: var(--bone-dim); }
+.flight .route { font-size: clamp(24px, 4.4vw, 52px); letter-spacing: .005em; }
+.flight .time  { font-size: clamp(22px, 3.6vw, 42px); }
+.flight .state {
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em;
+  font-size: clamp(14px, 1.9vw, 21px); white-space: nowrap;
+}
+
+/* struck from the board, but still readable — the dead flight is half the story */
+.flight.void .route,
+.flight.void .time { color: var(--bone-dim); }
+.flight.void .no { color: var(--bone-ghost); }
+.flight.void .route {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: var(--red);
+}
+.flight.void .state { color: var(--red); }
+
+.flight.live .route, .flight.live .time { color: var(--amber); }
+.flight.live .state { color: var(--amber); }
+.flight.done .route, .flight.done .time { color: var(--bone); }
+.flight.done .state { color: var(--bone); }
+.flight.pending .route, .flight.pending .time, .flight.pending .no { color: var(--bone-ghost); }
+.flight.pending .state { color: var(--bone-ghost); }
+
+.delta {
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
+  font-size: clamp(13px, 1.6vw, 17px); color: var(--bone-dim);
+  letter-spacing: .04em;
+}
+
+/* ── the nine steps ─────────────────────────────────────────────────────── */
+.steps-wrap { padding: clamp(14px, 2vw, 22px) var(--pad) clamp(20px, 3vw, 30px); }
+.steps {
+  display: grid; grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 3px;
+}
+.step {
+  background: var(--slat); border-top: 2px solid transparent;
+  padding: 11px 8px 13px; min-height: 78px;
+  display: flex; flex-direction: column; justify-content: flex-start; gap: 6px;
+  transition: background .28s ease, border-color .28s ease, color .28s ease;
+  position: relative; overflow: hidden;
+}
+.step .idx {
+  font-size: 10px; letter-spacing: .14em; color: var(--bone-ghost);
+  font-family: ui-monospace, monospace;
+}
+.step .nm {
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+  font-size: clamp(12px, 1.35vw, 16px); line-height: 1.05;
+  color: var(--bone-ghost);
+}
+.step .ms { font-size: 10px; color: transparent; font-family: ui-monospace, monospace; margin-top: auto; }
+
+.step.done      { background: var(--slat); }
+.step.done .nm  { color: var(--bone-dim); }
+.step.done .ms  { color: var(--bone-ghost); }
+
+.step.live {
+  background: var(--slat-lit); border-top-color: var(--amber);
+  /* the amber rule and lettering carry the state; a glow would only be light */
+  box-shadow: 0 14px 30px -22px rgba(0, 0, 0, .9);
+}
+.step.live .nm  { color: var(--amber); font-size: clamp(14px, 1.7vw, 20px); }
+.step.live .idx { color: var(--amber-deep); }
+.step.live .ms  { color: var(--amber-deep); }
+
+.step.failed { background: #1d100e; border-top-color: var(--red); }
+.step.failed .nm { color: var(--red); }
+.step.failed .ms { color: #a1453a; }
+
+.step.retried { border-top-color: var(--amber-deep); }
+.step.retried .nm { color: var(--bone-dim); }
+
+/* split-flap: the board's own motion, fired once when a slat changes */
+@keyframes flap {
+  0%   { transform: rotateX(-88deg); opacity: .25; }
+  55%  { transform: rotateX(8deg);   opacity: 1; }
+  100% { transform: rotateX(0);      opacity: 1; }
+}
+.flapped > * { animation: flap .34s cubic-bezier(.2,.85,.3,1) both; transform-origin: top center; }
+@media (prefers-reduced-motion: reduce) {
+  .flapped > * { animation: none; }
+  .live i { animation: none; }
+}
+
+/* ── the pause: the most important state on the board ───────────────────── */
+.hold {
+  margin: 0 var(--pad) clamp(18px, 2.6vw, 26px);
+  border-top: 2px solid var(--amber);
+  background: linear-gradient(180deg, rgba(255,171,25,.11), rgba(255,171,25,.02) 60%, transparent);
+  padding: clamp(16px, 2.4vw, 26px) clamp(16px, 2.4vw, 26px) clamp(18px, 2.4vw, 24px);
+}
+.hold[hidden] { display: none; }
+.hold h2 {
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .09em;
+  font-size: clamp(20px, 3vw, 32px); color: var(--amber);
+  margin: 0 0 4px;
+}
+.hold p { margin: 0 0 16px; color: var(--bone-dim); font-size: 13px; max-width: 68ch; }
+.opts { display: grid; gap: 3px; margin-bottom: 15px; }
+.opt {
+  display: grid; grid-template-columns: 2.2ch 1fr auto; gap: 14px; align-items: baseline;
+  background: var(--slat-lit); padding: 12px 15px;
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 600; text-transform: uppercase;
+  font-size: clamp(15px, 1.9vw, 20px); letter-spacing: .03em;
+}
+.opt .k { color: var(--amber); }
+.opt .p { color: var(--bone); }
+.keys { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── controls, in the board's own vocabulary ────────────────────────────── */
+button, select {
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .07em; font-size: 14px;
+  background: var(--slat-lit); color: var(--bone);
+  border: 1px solid var(--seam); border-radius: 0;
+  padding: 9px 15px; cursor: pointer;
+  transition: background .16s ease, color .16s ease, border-color .16s ease;
+}
+button:hover, select:hover { background: #262120; border-color: #3a342f; }
+button:active { transform: translateY(1px); }
+button.key-amber { background: var(--amber); color: #1a1206; border-color: var(--amber); }
+button.key-amber:hover { background: #ffbf4d; }
+button.key-void { color: var(--bone-dim); }
+button.key-void:hover { color: var(--red); border-color: #55302b; }
+button[disabled] { opacity: .38; cursor: not-allowed; }
+button[disabled]:hover { background: var(--slat-lit); border-color: var(--seam); }
+select { padding-right: 30px; }
+
+.controls {
+  display: flex; gap: 7px; flex-wrap: wrap; align-items: center;
+  padding: 0 var(--pad) clamp(18px, 2.4vw, 24px);
+}
+.controls .spacer { flex: 1 1 14px; }
+
+/* ── services: a thin info strip, not four cards ────────────────────────── */
+.services { padding: 0 var(--pad) clamp(20px, 3vw, 30px); }
+.svc {
+  display: grid; grid-template-columns: 11ch 1fr auto; gap: clamp(10px, 2vw, 22px);
+  align-items: baseline; padding: 11px 0; border-bottom: var(--rule);
+}
+.svc .nm {
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .11em; font-size: 14px; color: var(--bone-dim);
+}
+.svc .val { font-size: 13px; color: var(--bone-ghost); }
+.svc.touched .nm  { color: var(--bone); }
+.svc.touched .val { color: var(--bone); }
+.svc.working .nm, .svc.working .val { color: var(--amber); }
+.svc .mark { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--bone-ghost); }
+.svc.touched .mark { color: var(--bone-dim); }
+.svc.working .mark { color: var(--amber); }
+.svc.failed .nm, .svc.failed .val, .svc.failed .mark { color: var(--red); }
+
+/* ── the log ────────────────────────────────────────────────────────────── */
+.log-wrap { padding: 0 var(--pad) clamp(36px, 6vw, 64px); }
+.log-head {
+  display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  padding-bottom: 10px; border-bottom: var(--rule);
+}
+.log-head h2 {
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .13em; font-size: 14px;
+  color: var(--bone-dim); margin: 0;
+}
+.log-head .tally { margin-left: auto; font-size: 11px; letter-spacing: .13em; text-transform: uppercase; color: var(--bone-ghost); }
+.log { width: 100%; border-collapse: collapse; }
+.log th {
+  text-align: left; font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--bone-ghost); font-weight: 500; padding: 10px 14px 10px 0;
+}
+.log td { padding: 9px 14px 9px 0; border-bottom: var(--rule); font-size: 13px; vertical-align: baseline; }
+.log tr:hover td { background: rgba(255,255,255,.022); }
+.log .c-step { font-family: 'Barlow Condensed', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; font-size: 15px; white-space: nowrap; }
+.log .c-tool { color: var(--bone-dim); font-family: ui-monospace, monospace; font-size: 11.5px; white-space: nowrap; }
+.log .c-sum  { color: var(--bone-dim); }
+.log .c-ms   { color: var(--bone-ghost); font-family: ui-monospace, monospace; font-size: 11.5px; text-align: right; white-space: nowrap; }
+.log .c-st   { font-size: 10px; letter-spacing: .15em; text-transform: uppercase; white-space: nowrap; }
+.st-ok    { color: var(--bone-dim); }
+.st-retry { color: var(--amber); }
+.st-error { color: var(--red); }
+.st-skipped { color: var(--bone-ghost); }
+.log .empty td { color: var(--bone-ghost); font-style: normal; padding: 26px 0; }
+
+/* ── responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .log .c-tool, .log th.h-tool { display: none; }
+}
+@media (max-width: 620px) {
+  /* 3 across keeps nine steps as three clean rows; two would orphan the ninth */
+  .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .flight, .colhead { --cols: 1fr auto; }
+  .flight .no { display: none; }
+  .colhead span:first-child,
+  .colhead span:last-child { display: none; }
+  .flight .time { grid-column: 2; }
+  .flight .state { grid-column: 1 / -1; }
+  .log .c-sum, .log th.h-sum { display: none; }
+  .svc { grid-template-columns: 1fr auto; }
+  .svc .val { grid-column: 1 / -1; }
+}
+</style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-emerald-500 selection:text-white">
+<body>
+<!--
+  THESIS: A flight disruption shown on the board that announced it. Refuses the
+  dashboard-of-cards arrangement every agent demo ships; nothing here is enclosed.
+  OWN-WORLD: Warm near-black board face with hairline slat seams. Bone lettering,
+  Barlow Condensed at board scale. Amber is reserved for exactly one job — where the
+  agent is now and what it chose — and appears nowhere else; red only for aborts;
+  no success-green anywhere. Completed work dims to afterimage rather than sitting
+  at equal weight.
+  STORY: A judge sees the cancelled flight struck from the board, watches nine slats
+  flip, sees the board stop dead at DECIDE awaiting a human, then sees it resume and
+  the replacement take the dead flight's place.
+  FIRST VIEWPORT: Header strip; then the two flight rows at monumental scale, the
+  cancelled one struck through; the nine-step slat row beneath, current step amber and
+  larger; scenario keys sit directly under the board.
+  FORM: Airport departure board, user-pinned over mission-control and dark-refresh.
+  Raised by terminal-signage color discipline, cracktro box-refusal, phosphor
+  afterimage dimming. Seed key 6fbfb778.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish
+  review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
+-->
 
-  <!-- TOP NAVIGATION BAR -->
-  <header class="border-b border-slate-800/80 bg-slate-900/60 sticky top-0 z-50 backdrop-blur-md">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center space-x-4">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-          <i data-lucide="plane" class="w-5 h-5 text-slate-950"></i>
-        </div>
-        <div>
-          <div class="flex items-center space-x-2">
-            <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">REBOUND</span>
-            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              LIVE HARNESS
-            </span>
-          </div>
-          <p class="text-xs text-slate-400">Autonomous Multi-App Disruption Recovery Agent</p>
-        </div>
-      </div>
+<header class="strip">
+  <h1 class="wordmark">Rebound</h1>
+  <span class="live"><i></i><span id="live-label">Flight recovery</span></span>
+  <div class="sub">
+    <div id="run-label">No run loaded</div>
+    <div id="verdict-label" style="color:var(--bone-ghost)">—</div>
+  </div>
+</header>
 
-      <!-- Quick Action Controls -->
-      <div class="flex items-center space-x-2 sm:space-x-3 overflow-x-auto py-1">
-        <select id="run-selector" onchange="loadSelectedRun()" class="bg-slate-900 text-xs text-slate-300 border border-slate-700 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-          <option value="sample_run">Sample Run (Auto-Book)</option>
-        </select>
-        <button onclick="triggerDemoScenario('S01')" class="px-2.5 py-1.5 text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-sm transition flex items-center gap-1.5 whitespace-nowrap">
-          <i data-lucide="play" class="w-3.5 h-3.5"></i>
-          S01: Auto-Book
-        </button>
-        <button onclick="triggerDemoScenario('S02')" class="px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
-          <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
-          S02: SMS HITL
-        </button>
-        <button onclick="triggerDemoScenario('S05')" class="px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
-          <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-amber-400"></i>
-          S05: Ceiling
-        </button>
-        <button onclick="triggerDemoScenario('S21')" class="px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
-          <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-400"></i>
-          S21: Verify Abort
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-
-    <!-- 1. LIVE STATE MACHINE DAG -->
-    <div class="glass-card rounded-2xl p-6 shadow-xl relative overflow-hidden">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center space-x-2">
-          <i data-lucide="git-commit" class="w-5 h-5 text-emerald-400"></i>
-          <h2 class="text-sm font-semibold tracking-wide uppercase text-slate-300">State Machine DAG Execution</h2>
-        </div>
-        <div class="flex items-center space-x-2">
-          <span id="run-status-badge" class="text-xs px-2 py-0.5 rounded font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">COMPLETED</span>
-          <span id="run-id-badge" class="text-xs font-mono px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 border border-slate-700">run_id: sample_run</span>
-        </div>
-      </div>
-
-      <!-- Graph Nodes Timeline -->
-      <div class="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2 text-center pt-2">
-        <!-- 1. Ingest -->
-        <div id="dag-ingest" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 shadow-sm transition-all duration-300">
-          <div class="text-[10px] font-mono uppercase text-slate-500 mb-1">1. Ingest</div>
-          <div class="font-semibold text-xs flex items-center justify-center gap-1">
-            <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
-            Dedupe
-          </div>
-        </div>
-        <!-- 2. Context -->
-        <div id="dag-context" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 shadow-sm transition-all duration-300">
-          <div class="text-[10px] font-mono uppercase text-slate-500 mb-1">2. Context</div>
-          <div class="font-semibold text-xs flex items-center justify-center gap-1">
-            <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
-            Deadline
-          </div>
-        </div>
-        <!-- 3. Assess -->
-        <div id="dag-assess" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 shadow-sm transition-all duration-300">
-          <div class="text-[10px] font-mono uppercase text-slate-500 mb-1">3. Assess</div>
-          <div class="font-semibold text-xs flex items-center justify-center gap-1">
-            <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
-            Impact
-          </div>
-        </div>
-        <!-- 4. Search -->
-        <div id="dag-search" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 shadow-sm transition-all duration-300">
-          <div class="text-[10px] font-mono uppercase text-slate-500 mb-1">4. Search</div>
-          <div class="font-semibold text-xs flex items-center justify-center gap-1">
-            <i data-lucide="search" class="w-3.5 h-3.5"></i>
-            Duffel NDC
-          </div>
-        </div>
-        <!-- 5. Rank -->
-        <div id="dag-rank" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 shadow-sm transition-all duration-300">
-          <div class="text-[10px] font-mono uppercase text-slate-500 mb-1">5. Rank</div>
-          <div class="font-semibold text-xs flex items-center justify-center gap-1">
-            <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
-            Guardrails
-          </div>
-        </div>
-        <!-- 6. Decide -->
-        <div id="dag-decide" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 shadow-sm transition-all duration-300">
-          <div class="text-[10px] font-mono uppercase text-slate-500 mb-1">6. Decide</div>
-          <div class="font-semibold text-xs flex items-center justify-center gap-1">
-            <i data-lucide="scale" class="w-3.5 h-3.5"></i>
-            Mandate
-          </div>
-        </div>
-        <!-- 7. Act -->
-        <div id="dag-act" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 shadow-sm transition-all duration-300">
-          <div class="text-[10px] font-mono uppercase text-slate-500 mb-1">7. Act</div>
-          <div class="font-semibold text-xs flex items-center justify-center gap-1">
-            <i data-lucide="ticket" class="w-3.5 h-3.5"></i>
-            Hold/Book
-          </div>
-        </div>
-        <!-- 8. Verify -->
-        <div id="dag-verify" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 shadow-sm transition-all duration-300">
-          <div class="text-[10px] font-mono uppercase text-slate-500 mb-1">8. Verify</div>
-          <div class="font-semibold text-xs flex items-center justify-center gap-1">
-            <i data-lucide="check-check" class="w-3.5 h-3.5"></i>
-            Cancel Old
-          </div>
-        </div>
-        <!-- 9. Report -->
-        <div id="dag-report" class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 shadow-sm transition-all duration-300">
-          <div class="text-[10px] font-mono uppercase text-slate-500 mb-1">9. Report</div>
-          <div class="font-semibold text-xs flex items-center justify-center gap-1">
-            <i data-lucide="mail-check" class="w-3.5 h-3.5"></i>
-            Notify & Trace
-          </div>
-        </div>
-      </div>
+<main>
+  <section class="flights" aria-label="Flights">
+    <div class="colhead" aria-hidden="true">
+      <span>Flight</span><span>Route</span><span>Arrives</span><span>Status</span>
     </div>
 
-    <!-- 2. MULTI-APP LIVE STATUS GRID (THE 4 EXTERNAL APPS) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-      <!-- APP 1: DUFFEL FLIGHTS API -->
-      <div class="glass-card rounded-2xl p-5 shadow-lg border-t-2 border-t-emerald-500">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center space-x-2">
-            <span class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
-              <i data-lucide="plane-takeoff" class="w-4 h-4"></i>
-            </span>
-            <h3 class="text-sm font-semibold text-slate-200">Duffel Flights API</h3>
-          </div>
-          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">NDC Live</span>
-        </div>
-        <div class="space-y-2 text-xs">
-          <div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800">
-            <div class="text-slate-400 text-[10px]">New Booking Reference</div>
-            <div id="duffel-ref" class="font-mono font-bold text-emerald-400 text-sm">REF320905</div>
-            <div id="duffel-order" class="text-[11px] text-slate-400 truncate">Order: ord_off_a_1789320905</div>
-          </div>
-          <div class="flex justify-between items-center text-[11px] px-1">
-            <span class="text-slate-400">Hold Order Pattern:</span>
-            <span id="duffel-hold-status" class="font-medium text-emerald-400">Price Locked</span>
-          </div>
-          <div class="flex justify-between items-center text-[11px] px-1">
-            <span class="text-slate-400">Disrupted Ticket:</span>
-            <span id="duffel-cancelled" class="font-medium text-rose-400">Cancelled ($380.00 refund)</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- APP 2: GOOGLE CALENDAR -->
-      <div class="glass-card rounded-2xl p-5 shadow-lg border-t-2 border-t-blue-500">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center space-x-2">
-            <span class="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
-              <i data-lucide="calendar-check" class="w-4 h-4"></i>
-            </span>
-            <h3 class="text-sm font-semibold text-slate-200">Google Calendar</h3>
-          </div>
-          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800">OAuth2 Live</span>
-        </div>
-        <div class="space-y-2 text-xs">
-          <div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800">
-            <div class="text-slate-400 text-[10px]">Destination Hard Deadline</div>
-            <div id="gcal-deadline" class="font-mono font-semibold text-blue-400">2026-09-15 09:00 UTC</div>
-            <div class="text-[11px] text-slate-400">Key Stakeholder Meeting</div>
-          </div>
-          <div class="flex justify-between items-center text-[11px] px-1">
-            <span class="text-slate-400">Flight Card:</span>
-            <span id="gcal-status" class="font-medium text-emerald-400">Patched (Arr 17:05)</span>
-          </div>
-          <div class="flex justify-between items-center text-[11px] px-1">
-            <span class="text-slate-400">Arrival Buffer:</span>
-            <span id="gcal-buffer" class="font-medium text-slate-300">16h before meeting</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- APP 3: GMAIL INBOX & CLAIMS -->
-      <div class="glass-card rounded-2xl p-5 shadow-lg border-t-2 border-t-purple-500">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center space-x-2">
-            <span class="p-1.5 rounded-lg bg-purple-500/10 text-purple-400">
-              <i data-lucide="mail" class="w-4 h-4"></i>
-            </span>
-            <h3 class="text-sm font-semibold text-slate-200">Gmail Notification</h3>
-          </div>
-          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-400 border border-purple-800">REST API</span>
-        </div>
-        <div class="space-y-2 text-xs">
-          <div class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800">
-            <div class="text-slate-400 text-[10px]">Traveler Itinerary Sent</div>
-            <div id="gmail-subject" class="font-medium text-purple-300 truncate">[Rebound] Rebooked: ZZ201</div>
-            <div class="text-[11px] text-slate-400">alex@example.com</div>
-          </div>
-          <div class="flex justify-between items-center text-[11px] px-1">
-            <span class="text-slate-400">EU261 Claim:</span>
-            <span id="gmail-claim" class="font-medium text-emerald-400">Draft Created</span>
-          </div>
-          <div class="flex justify-between items-center text-[11px] px-1">
-            <span class="text-slate-400">Statutory Rights:</span>
-            <span class="font-medium text-slate-300">€600 Claim Ready</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- APP 4: TWILIO SMS GATEWAY (SMARTPHONE SIMULATOR) -->
-      <div class="glass-card rounded-2xl p-5 shadow-lg border-t-2 border-t-amber-500">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center space-x-2">
-            <span class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
-              <i data-lucide="smartphone" class="w-4 h-4"></i>
-            </span>
-            <h3 class="text-sm font-semibold text-slate-200">Twilio SMS Gateway</h3>
-          </div>
-          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-800">+1 555-0001</span>
-        </div>
-        <div class="space-y-2 text-xs">
-          <!-- Virtual SMS bubble -->
-          <div id="sms-bubble" class="p-2.5 rounded-lg bg-slate-900/90 border border-amber-500/30 text-[11px] text-slate-200 font-mono whitespace-pre-wrap max-h-24 overflow-y-auto">
-            [Rebound] Rebooked on ZZ201 arriving 17:05. Booking ref: REF320905. Itinerary emailed.
-          </div>
-          <!-- 1-Click Interactive Reply Buttons -->
-          <div class="flex space-x-1.5 pt-1">
-            <button onclick="sendSimulatedReply('1')" class="flex-1 py-1 bg-emerald-600/80 hover:bg-emerald-500 text-white rounded font-medium text-[10px] transition">Reply "1"</button>
-            <button onclick="sendSimulatedReply('2')" class="flex-1 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-medium text-[10px] transition">Reply "2"</button>
-            <button onclick="sendSimulatedReply('NO')" class="flex-1 py-1 bg-rose-900/80 hover:bg-rose-700 text-rose-200 rounded font-medium text-[10px] transition">Reply "NO"</button>
-          </div>
-        </div>
-      </div>
-
+    <div class="flight void" id="row-original">
+      <div class="no board-type">ZZ123</div>
+      <div class="route">LHR — JFK</div>
+      <div class="time">13:00</div>
+      <div class="state">Cancelled</div>
     </div>
 
-    <!-- 3. LIVE TRACE TIMELINE (JSONL AUDIT LOG) -->
-    <div class="glass-card rounded-2xl p-6 shadow-xl">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center space-x-2">
-          <i data-lucide="activity" class="w-5 h-5 text-teal-400"></i>
-          <h2 class="text-sm font-semibold tracking-wide uppercase text-slate-300">Execution Trace Timeline</h2>
-        </div>
-        <div class="flex items-center space-x-3 text-xs text-slate-400">
-          <span id="trace-step-count">14 steps</span>
-          <span>•</span>
-          <span id="trace-total-latency">24ms total</span>
-        </div>
-      </div>
-
-      <!-- Trace Table -->
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs font-mono">
-          <thead class="text-slate-400 border-b border-slate-800 text-[11px]">
-            <tr>
-              <th class="py-2.5 px-3">Step</th>
-              <th class="py-2.5 px-3">Tool / Node</th>
-              <th class="py-2.5 px-3">Output Summary</th>
-              <th class="py-2.5 px-3">Latency</th>
-              <th class="py-2.5 px-3">Status</th>
-            </tr>
-          </thead>
-          <tbody id="trace-table-body" class="divide-y divide-slate-800/60 text-slate-300">
-            <!-- Populated via JavaScript -->
-          </tbody>
-        </table>
-      </div>
+    <div class="flight pending" id="row-replacement">
+      <div class="no board-type" id="rep-no">—</div>
+      <div class="route" id="rep-route">Awaiting search</div>
+      <div class="time" id="rep-time">--:--</div>
+      <div class="state" id="rep-state">Standby</div>
     </div>
 
-    <!-- 4. EVALUATION MATRIX (THE 30/30 PROOF) -->
-    <div class="glass-card rounded-2xl p-6 shadow-xl">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center space-x-2">
-          <i data-lucide="shield-check" class="w-5 h-5 text-emerald-400"></i>
-          <h2 class="text-sm font-semibold tracking-wide uppercase text-slate-300">Automated Evaluation Suite (30/30 Green)</h2>
-        </div>
-        <span class="px-2.5 py-1 text-xs font-bold rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          100.0% PASS RATE
-        </span>
-      </div>
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-center text-xs">
-        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
-          <div class="text-slate-400 text-[10px]">Idempotency (S10)</div>
-          <div class="font-bold text-emerald-400 mt-1">VERIFIED</div>
-        </div>
-        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
-          <div class="text-slate-400 text-[10px]">Hold-Order Pattern</div>
-          <div class="font-bold text-emerald-400 mt-1">VERIFIED</div>
-        </div>
-        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
-          <div class="text-slate-400 text-[10px]">Irreversible Order</div>
-          <div class="font-bold text-emerald-400 mt-1">VERIFIED</div>
-        </div>
-        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
-          <div class="text-slate-400 text-[10px]">Duffel 500 Backoff</div>
-          <div class="font-bold text-emerald-400 mt-1">VERIFIED</div>
-        </div>
-        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
-          <div class="text-slate-400 text-[10px]">EU261 Claims (S22)</div>
-          <div class="font-bold text-emerald-400 mt-1">VERIFIED</div>
-        </div>
-        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
-          <div class="text-slate-400 text-[10px]">Graceful Degrade</div>
-          <div class="font-bold text-emerald-400 mt-1">VERIFIED</div>
-        </div>
-      </div>
+    <div class="delta" id="rep-delta" style="padding-top:12px">&nbsp;</div>
+  </section>
+
+  <section class="steps-wrap" aria-label="Agent steps">
+    <div class="steps" id="steps"></div>
+  </section>
+
+  <section class="hold" id="hold" hidden aria-live="polite">
+    <h2 id="hold-title">Awaiting authorization</h2>
+    <p id="hold-copy">Fare difference exceeds the traveler's approval threshold, so the agent has locked the seat and stopped. Nothing is booked until a human answers.</p>
+    <div class="opts" id="hold-opts"></div>
+    <div class="keys">
+      <button class="key-amber" onclick="sendSimulatedReply('1')">Reply 1</button>
+      <button onclick="sendSimulatedReply('2')">Reply 2</button>
+      <button class="key-void" onclick="sendSimulatedReply('NO')">Reply NO</button>
     </div>
+  </section>
 
-  </main>
+  <div class="controls">
+    <button onclick="triggerDemoScenario('S01')">S01 · Auto-book</button>
+    <button onclick="triggerDemoScenario('S02')">S02 · Human approval</button>
+    <button onclick="triggerDemoScenario('S05')">S05 · Spend ceiling</button>
+    <button onclick="triggerDemoScenario('S21')">S21 · Verify abort</button>
+    <span class="spacer"></span>
+    <select id="run-selector" onchange="loadSelectedRun()" aria-label="Select run">
+      <option value="sample_run">Sample run</option>
+    </select>
+  </div>
 
-  <script>
-    // Embedded sample trace data for offline/standalone execution
-    const SAMPLE_TRACE = [
-      {"step":"ingest","tool":"db.record_event","output_summary":"Event evt_sample_01 (cancelled) ingested successfully.","latency_ms":1,"status":"ok"},
-      {"step":"context","tool":"calendar.get_destination_deadline","output_summary":"Hard arrival deadline resolved to 2026-09-15 09:00 UTC","latency_ms":2,"status":"ok"},
-      {"step":"assess","tool":"policy.is_delay_acceptable","output_summary":"Disruption impacts trip. Proceeding to search alternative flights.","latency_ms":1,"status":"ok"},
-      {"step":"search","tool":"duffel.offer_requests.create","output_summary":"Retrieved candidate offers from Duffel NDC inventory.","latency_ms":3,"status":"ok"},
-      {"step":"rank","tool":"policy.filter_survivors","output_summary":"Pruned layover & late flights. Top choice off_a (+120.00) chosen.","latency_ms":2,"status":"ok"},
-      {"step":"decide","tool":"policy.evaluate_mandate","output_summary":"Cost delta +$120.00 within $300 threshold (Auto-Book path).","latency_ms":1,"status":"ok"},
-      {"step":"act","tool":"duffel.orders.confirm","output_summary":"Booked order ord_off_a_1789 (Ref: REF320905)","latency_ms":4,"status":"ok"},
-      {"step":"verify","tool":"duffel.orders.get","output_summary":"Verified order is confirmed and active on Duffel NDC.","latency_ms":1,"status":"ok"},
-      {"step":"cancel_old","tool":"duffel.order_cancellations","output_summary":"Old ticket cancelled safely. Refund quote: $380.00","latency_ms":2,"status":"ok"},
-      {"step":"calendar_update","tool":"calendar.patch_trip_event","output_summary":"Google Calendar flight card updated to 17:05 arrival.","latency_ms":2,"status":"ok"},
-      {"step":"email_dispatch","tool":"gmail.send_itinerary_email","output_summary":"Itinerary sent to alex@example.com","latency_ms":2,"status":"ok"},
-      {"step":"claim:drafted","tool":"gmail.draft","output_summary":"EU261 statutory claim drafted in Gmail drafts.","latency_ms":1,"status":"ok"},
-      {"step":"pickup_notify","tool":"twilio.send_sms","output_summary":"Notified pickup contact Sam at +15550000002","latency_ms":1,"status":"ok"},
-      {"step":"report","tool":"twilio.send_sms","output_summary":"Final summary SMS dispatched to traveler.","latency_ms":1,"status":"ok"}
-    ];
+  <section class="services" aria-label="External services">
+    <div class="svc" id="svc-duffel">
+      <div class="nm">Duffel</div><div class="val" id="svc-duffel-val">Not called</div><div class="mark" id="svc-duffel-mark">—</div>
+    </div>
+    <div class="svc" id="svc-calendar">
+      <div class="nm">Calendar</div><div class="val" id="svc-calendar-val">Not called</div><div class="mark" id="svc-calendar-mark">—</div>
+    </div>
+    <div class="svc" id="svc-gmail">
+      <div class="nm">Gmail</div><div class="val" id="svc-gmail-val">Not called</div><div class="mark" id="svc-gmail-mark">—</div>
+    </div>
+    <div class="svc" id="svc-twilio">
+      <div class="nm">Twilio</div><div class="val" id="svc-twilio-val">Not called</div><div class="mark" id="svc-twilio-mark">—</div>
+    </div>
+  </section>
 
-    const DAG_STEP_MAPPING = {
-      "ingest": "dag-ingest",
-      "context": "dag-context",
-      "assess": "dag-assess",
-      "search": "dag-search",
-      "rank": "dag-rank",
-      "decide": "dag-decide",
-      "act": "dag-act",
-      "verify": "dag-verify",
-      "cancel_old": "dag-verify",
-      "calendar_update": "dag-report",
-      "email_dispatch": "dag-report",
-      "claim:drafted": "dag-report",
-      "pickup_notify": "dag-report",
-      "report": "dag-report"
-    };
+  <section class="log-wrap" aria-label="Run trace">
+    <div class="log-head">
+      <h2>Trace</h2>
+      <span class="tally"><span id="trace-step-count">0 steps</span> · <span id="trace-total-latency">0ms</span></span>
+    </div>
+    <table class="log">
+      <thead>
+        <tr>
+          <th>Step</th><th class="h-tool">Tool</th><th class="h-sum">Result</th>
+          <th style="text-align:right">Latency</th><th>State</th>
+        </tr>
+      </thead>
+      <tbody id="trace-table-body"></tbody>
+    </table>
+  </section>
+</main>
 
-    function resetDag() {
-      const allDags = ["dag-ingest", "dag-context", "dag-assess", "dag-search", "dag-rank", "dag-decide", "dag-act", "dag-verify", "dag-report"];
-      allDags.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.className = "p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-500 shadow-sm transition-all duration-300";
-        }
+<script>
+const SAMPLE_TRACE = [
+  {"step":"ingest","tool":"db.record_event","output_summary":"Event evt_sample_01 (cancelled) ingested successfully.","latency_ms":1,"status":"ok"},
+  {"step":"context","tool":"calendar.get_destination_deadline","output_summary":"Hard arrival deadline resolved to 2026-09-15 09:00 UTC","latency_ms":2,"status":"ok"},
+  {"step":"assess","tool":"policy.is_delay_acceptable","output_summary":"Disruption impacts trip. Proceeding to search alternative flights.","latency_ms":1,"status":"ok"},
+  {"step":"search","tool":"duffel.offer_requests.create","output_summary":"Retrieved candidate offers from Duffel NDC inventory.","latency_ms":3,"status":"ok"},
+  {"step":"rank","tool":"policy.filter_survivors","output_summary":"Pruned layover & late flights. Top choice off_a (+120.00) chosen.","latency_ms":2,"status":"ok"},
+  {"step":"decide","tool":"policy.evaluate_mandate","output_summary":"Cost delta +$120.00 within $300 threshold (Auto-Book path).","latency_ms":1,"status":"ok"},
+  {"step":"act","tool":"duffel.orders.confirm","output_summary":"Booked order ord_off_a_1789 (Ref: REF320905)","latency_ms":4,"status":"ok"},
+  {"step":"verify","tool":"duffel.orders.get","output_summary":"Verified order is confirmed and active on Duffel NDC.","latency_ms":1,"status":"ok"},
+  {"step":"cancel_old","tool":"duffel.order_cancellations","output_summary":"Old ticket cancelled safely. Refund quote: $380.00","latency_ms":2,"status":"ok"},
+  {"step":"calendar_update","tool":"calendar.patch_trip_event","output_summary":"Google Calendar flight card updated to 17:05 arrival.","latency_ms":2,"status":"ok"},
+  {"step":"email_dispatch","tool":"gmail.send_itinerary_email","output_summary":"Itinerary sent to alex@example.com","latency_ms":2,"status":"ok"},
+  {"step":"claim:drafted","tool":"gmail.draft","output_summary":"EU261 statutory claim drafted in Gmail drafts.","latency_ms":1,"status":"ok"},
+  {"step":"pickup_notify","tool":"twilio.send_sms","output_summary":"Notified pickup contact Sam at +15550000002","latency_ms":1,"status":"ok"},
+  {"step":"report","tool":"twilio.send_sms","output_summary":"Final summary SMS dispatched to traveler.","latency_ms":1,"status":"ok"}
+];
+
+const STEPS = [
+  { key: "ingest",  label: "Ingest"  },
+  { key: "context", label: "Context" },
+  { key: "assess",  label: "Assess"  },
+  { key: "search",  label: "Search"  },
+  { key: "rank",    label: "Rank"    },
+  { key: "decide",  label: "Decide"  },
+  { key: "act",     label: "Act"     },
+  { key: "verify",  label: "Verify"  },
+  { key: "report",  label: "Report"  }
+];
+
+// Granular trace steps fold onto the nine the board shows.
+const STEP_MAP = {
+  ingest: "ingest", context: "context", assess: "assess", search: "search",
+  rank: "rank", decide: "decide", hold_order: "decide", interrupt: "decide",
+  approval: "decide", options: "decide", act: "act", verify: "verify", cancel_old: "verify",
+  calendar_update: "report", email_dispatch: "report", claim: "report",
+  pickup_notify: "report", report: "report", sms: "decide"
+};
+
+const SERVICE_OF = {
+  "duffel":   "duffel",
+  "calendar": "calendar",
+  "gmail":    "gmail",
+  "twilio":   "twilio",
+  "db":       null,
+  "policy":   null
+};
+
+let lastRendered = {};
+
+function buildSteps() {
+  const host = document.getElementById("steps");
+  host.innerHTML = "";
+  STEPS.forEach((s, i) => {
+    const cell = document.createElement("div");
+    cell.className = "step";
+    cell.id = "step-" + s.key;
+    cell.innerHTML =
+      '<div><div class="idx">' + String(i + 1).padStart(2, "0") + '</div>' +
+      '<div class="nm">' + s.label + '</div></div>' +
+      '<div class="ms" id="ms-' + s.key + '"></div>';
+    host.appendChild(cell);
+  });
+}
+
+function baseOf(step) {
+  if (!step) return "";
+  const head = step.split(":")[0];
+  return STEP_MAP[head] || STEP_MAP[step] || null;
+}
+
+function setService(id, value, mark, cls) {
+  const row = document.getElementById("svc-" + id);
+  if (!row) return;
+  row.className = "svc " + (cls || "touched");
+  document.getElementById("svc-" + id + "-val").textContent = value;
+  document.getElementById("svc-" + id + "-mark").textContent = mark;
+}
+
+function resetBoard() {
+  STEPS.forEach(s => {
+    const el = document.getElementById("step-" + s.key);
+    el.className = "step";
+    document.getElementById("ms-" + s.key).textContent = "";
+  });
+  ["duffel", "calendar", "gmail", "twilio"].forEach(id => {
+    const row = document.getElementById("svc-" + id);
+    row.className = "svc";
+    document.getElementById("svc-" + id + "-val").textContent = "Not called";
+    document.getElementById("svc-" + id + "-mark").textContent = "—";
+  });
+  document.getElementById("hold").hidden = true;
+  const rep = document.getElementById("row-replacement");
+  rep.className = "flight pending";
+  document.getElementById("rep-no").textContent = "—";
+  document.getElementById("rep-route").textContent = "Awaiting search";
+  document.getElementById("rep-time").textContent = "--:--";
+  document.getElementById("rep-state").textContent = "Standby";
+  document.getElementById("rep-delta").innerHTML = "&nbsp;";
+}
+
+function renderBoard(entries) {
+  resetBoard();
+
+  let reached = {};
+  let failedStep = null;
+  let awaiting = false;
+  let booked = false;
+  let latencyBy = {};
+
+  entries.forEach(e => {
+    const b = baseOf(e.step);
+    if (!b) return;
+    reached[b] = e.status === "error" ? "failed" : (reached[b] === "failed" ? "failed" : "done");
+    if (e.status === "retry" && reached[b] !== "failed") reached[b] = "retried";
+    if (e.status === "error") failedStep = b;
+    latencyBy[b] = (latencyBy[b] || 0) + (e.latency_ms || 0);
+
+    if (e.step === "interrupt:paused_for_approval" || e.step === "decide:ask") awaiting = true;
+    if (e.step === "approval:received:1" || e.step === "approval:received:2") awaiting = false;
+    if (e.step === "act") booked = true;
+
+    // services
+    const tool = (e.tool || "").split(".")[0];
+    const svc = SERVICE_OF[tool];
+    if (svc) {
+      const failed = e.status === "error";
+      const retried = e.status === "retry";
+      setService(
+        svc,
+        e.output_summary ? e.output_summary.slice(0, 96) : e.tool,
+        failed ? "Failed" : retried ? "Retried" : "OK",
+        failed ? "failed" : "touched"
+      );
+    }
+
+    // flight rows
+    if (e.step === "act" && e.output_summary) {
+      const ref = e.output_summary.match(/Ref:\s*([A-Za-z0-9_]+)/);
+      const rep = document.getElementById("row-replacement");
+      rep.className = "flight done";
+      document.getElementById("rep-state").textContent = ref ? "Booked " + ref[1] : "Booked";
+    }
+    if (e.step === "rank" && e.output_summary) {
+      const rep = document.getElementById("row-replacement");
+      if (!booked) rep.className = "flight live";
+      document.getElementById("rep-state").textContent = "Selected";
+      const offer = e.output_summary.match(/choice\s+(\S+)/);
+      if (offer) document.getElementById("rep-no").textContent = offer[1];
+      const delta = e.output_summary.match(/\+?\$?([\d,]+\.\d{2})/);
+      if (delta) document.getElementById("rep-delta").textContent = "Fare difference +$" + delta[1];
+    }
+    // The only step that names the actual flight the agent picked.
+    if (e.step === "options:presented" && e.output_summary) {
+      const first = e.output_summary.split("|")[0].trim()
+        .match(/^1\)\s+(\S+)\s+(\S+)\s+dep\s+\S+\s+arr\s+(\S+)/);
+      if (first) {
+        document.getElementById("rep-no").textContent = first[1];
+        document.getElementById("rep-route").textContent = first[2].replace("-", " — ");
+        document.getElementById("rep-time").textContent = first[3];
+      }
+    }
+    if (e.step === "rank:0_survivors") {
+      document.getElementById("rep-route").textContent = "No flight meets the deadline";
+      document.getElementById("rep-state").textContent = "None";
+    }
+    if (e.step === "verify:failed") {
+      const rep = document.getElementById("row-replacement");
+      rep.className = "flight void";
+      document.getElementById("rep-state").textContent = "Aborted — original kept";
+    }
+    // The new arrival time, taken only where a step names it as an arrival.
+    // The context step carries the *deadline* in the same shape, so a loose
+    // time match there would put the meeting time on the flight row.
+    if (e.output_summary && baseOf(e.step) !== "context") {
+      const t = e.output_summary.match(/\barr\w*\s+([0-2]\d:[0-5]\d)/i)
+             || e.output_summary.match(/\b([0-2]\d:[0-5]\d)\s+arrival/i);
+      if (t) document.getElementById("rep-time").textContent = t[1];
+    }
+  });
+
+  // paint steps; the last reached step is where the agent stands
+  let lastKey = null;
+  STEPS.forEach(s => {
+    const st = reached[s.key];
+    if (!st) return;
+    lastKey = s.key;
+    const el = document.getElementById("step-" + s.key);
+    el.className = "step " + (st === "failed" ? "failed" : st === "retried" ? "retried done" : "done");
+    if (latencyBy[s.key]) document.getElementById("ms-" + s.key).textContent = latencyBy[s.key] + "ms";
+  });
+
+  // Amber marks where the agent stands right now. A finished run has no "now",
+  // so a completed board carries no amber at all — that is what makes the amber
+  // mean something when the board is genuinely waiting.
+  const settled = booked || reached["report"] === "done";
+  const liveKey = failedStep ? null : (awaiting ? "decide" : (settled ? null : lastKey));
+
+  if (liveKey) {
+    const el = document.getElementById("step-" + liveKey);
+    if (el) {
+      el.className = "step live";
+      if (lastRendered.liveKey !== liveKey) {
+        el.classList.add("flapped");
+        setTimeout(() => el.classList.remove("flapped"), 420);
+      }
+    }
+  }
+  lastRendered.liveKey = liveKey;
+
+  // the pause
+  const hold = document.getElementById("hold");
+  if (awaiting) {
+    hold.hidden = false;
+    const opts = document.getElementById("hold-opts");
+    opts.innerHTML = "";
+    const askLine = entries.find(e => e.step === "decide:ask");
+    const offered = entries.find(e => e.step === "options:presented");
+
+    // Only ever show options the run actually presented.
+    const rows = [];
+    if (offered && offered.output_summary) {
+      offered.output_summary.split("|").forEach(part => {
+        const m = part.trim().match(/^(\d)\)\s+(\S+)\s+(\S+)\s+dep\s+(\S+)\s+arr\s+(\S+)\s+([+-][\d.]+)/);
+        if (m) rows.push({ k: m[1], p: m[2] + "  " + m[3].replace("-", " — "), t: "arr " + m[5], d: m[6] });
       });
     }
 
-    function updateDagAndCards(entries) {
-      resetDag();
-      let hasError = false;
-
-      entries.forEach(entry => {
-        const stepBase = entry.step ? entry.step.split(":")[0] : "";
-        const dagId = DAG_STEP_MAPPING[entry.step] || DAG_STEP_MAPPING[stepBase];
-        if (dagId) {
-          const el = document.getElementById(dagId);
-          if (el) {
-            if (entry.status === "error") {
-              el.className = "p-3 rounded-xl bg-rose-950/40 border border-rose-500/80 text-rose-300 shadow-sm transition-all duration-300";
-              hasError = true;
-            } else if (entry.status === "retry") {
-              el.className = "p-3 rounded-xl bg-amber-950/40 border border-amber-500/80 text-amber-300 shadow-sm transition-all duration-300";
-            } else {
-              el.className = "p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/80 text-emerald-300 shadow-sm transition-all duration-300";
-            }
-          }
-        }
-
-        // Context / Calendar
-        if (entry.step === "context" && entry.output_summary) {
-          const match = entry.output_summary.match(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/);
-          if (match) {
-            document.getElementById("gcal-deadline").innerText = match[0] + " UTC";
-          }
-        }
-
-        // Act / Booking
-        if (entry.step === "act" && entry.output_summary) {
-          const refMatch = entry.output_summary.match(/Ref:\s*([A-Za-z0-9_]+)/);
-          const ordMatch = entry.output_summary.match(/order\s*([A-Za-z0-9_]+)/);
-          if (refMatch) document.getElementById("duffel-ref").innerText = refMatch[1];
-          if (ordMatch) document.getElementById("duffel-order").innerText = "Order: " + ordMatch[1];
-          document.getElementById("duffel-ref").className = "font-mono font-bold text-emerald-400 text-sm";
-        }
-
-        // Verify failure
-        if (entry.step === "verify:failed") {
-          document.getElementById("duffel-cancelled").innerText = "Aborted (Old flight kept)";
-          document.getElementById("duffel-cancelled").className = "font-medium text-amber-400";
-        }
-
-        // Cancel old
-        if (entry.step === "cancel_old" && entry.output_summary) {
-          document.getElementById("duffel-cancelled").innerText = "Cancelled (Refund quoted)";
-          document.getElementById("duffel-cancelled").className = "font-medium text-rose-400";
-        }
-
-        // SMS bubble
-        if ((entry.step === "report" || entry.step === "decide:ask") && entry.output_summary) {
-          document.getElementById("sms-bubble").innerText = entry.output_summary;
-        }
+    if (rows.length) {
+      rows.forEach(o => {
+        const row = document.createElement("div");
+        row.className = "opt";
+        row.innerHTML = '<span class="k">' + o.k + '</span><span class="p">' + o.p +
+                        '</span><span>' + o.t + '  ·  ' + (o.d.startsWith("+") ? "+$" : "-$") +
+                        Math.abs(parseFloat(o.d)).toFixed(2) + '</span>';
+        opts.appendChild(row);
       });
-
-      const badge = document.getElementById("run-status-badge");
-      if (hasError) {
-        badge.innerText = "ESCALATED";
-        badge.className = "text-xs px-2 py-0.5 rounded font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30";
-      } else {
-        badge.innerText = "COMPLETED";
-        badge.className = "text-xs px-2 py-0.5 rounded font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
-      }
+      // the board's arrival is option 1's, which is the held seat
+      document.getElementById("rep-time").textContent = rows[0].t.replace("arr ", "");
+    } else {
+      const row = document.createElement("div");
+      row.className = "opt";
+      row.innerHTML = '<span class="k">—</span><span class="p">Options sent by message</span>' +
+                      '<span>not itemised in this trace</span>';
+      opts.appendChild(row);
     }
 
-    function renderTraceTable(entries) {
-      const tbody = document.getElementById("trace-table-body");
-      tbody.innerHTML = "";
-      let totalLatency = 0;
-
-      entries.forEach((item) => {
-        totalLatency += item.latency_ms || 1;
-        const tr = document.createElement("tr");
-        tr.className = "hover:bg-slate-800/40 transition-colors";
-
-        let statusColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
-        if (item.status === "error") {
-          statusColor = "text-rose-400 bg-rose-500/10 border-rose-500/20";
-        } else if (item.status === "retry") {
-          statusColor = "text-amber-400 bg-amber-500/10 border-amber-500/20";
-        }
-
-        tr.innerHTML = `
-          <td class="py-2.5 px-3 font-semibold text-slate-200">${item.step}</td>
-          <td class="py-2.5 px-3 text-slate-400">${item.tool || "internal"}</td>
-          <td class="py-2.5 px-3 text-slate-300 max-w-md truncate" title="${item.output_summary || ''}">${item.output_summary || ""}</td>
-          <td class="py-2.5 px-3 text-slate-400">${item.latency_ms || 1}ms</td>
-          <td class="py-2.5 px-3">
-            <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${statusColor}">
-              ${(item.status || "ok").toUpperCase()}
-            </span>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-
-      document.getElementById("trace-step-count").innerText = `${entries.length} steps`;
-      document.getElementById("trace-total-latency").innerText = `${totalLatency}ms total`;
-      updateDagAndCards(entries);
-      lucide.createIcons();
+    if (askLine && askLine.output_summary) {
+      document.getElementById("hold-copy").textContent = askLine.output_summary;
     }
+  } else {
+    hold.hidden = true;
+  }
 
-    async function loadRunsDropdown() {
-      try {
-        const resp = await fetch("/api/runs");
-        if (resp.ok) {
-          const data = await resp.json();
-          const selector = document.getElementById("run-selector");
-          selector.innerHTML = '<option value="sample_run">Sample Run (Auto-Book)</option>';
-          if (data.runs && data.runs.length > 0) {
-            data.runs.forEach(r => {
-              const opt = document.createElement("option");
-              opt.value = r.run_id;
-              opt.innerText = `${r.run_id} (${r.action})`;
-              selector.appendChild(opt);
-            });
-          }
-        }
-      } catch (e) {
-        console.log("Using static sample run list.");
-      }
-    }
+  // verdict
+  const verdict = document.getElementById("verdict-label");
+  if (failedStep) { verdict.textContent = "Escalated — nothing booked"; verdict.style.color = "var(--red)"; }
+  else if (awaiting) { verdict.textContent = "Waiting on traveler"; verdict.style.color = "var(--amber)"; }
+  else if (booked) { verdict.textContent = "Rebooked"; verdict.style.color = "var(--bone)"; }
+  else { verdict.textContent = "—"; verdict.style.color = "var(--bone-ghost)"; }
+}
 
-    async function loadSelectedRun() {
-      const runId = document.getElementById("run-selector").value;
-      document.getElementById("run-id-badge").innerText = `run_id: ${runId}`;
+function renderTraceTable(entries) {
+  const tbody = document.getElementById("trace-table-body");
+  tbody.innerHTML = "";
+  let total = 0;
 
-      if (runId === "sample_run") {
-        renderTraceTable(SAMPLE_TRACE);
-        return;
-      }
+  if (!entries.length) {
+    tbody.innerHTML = '<tr class="empty"><td colspan="5">No steps yet. Fire a scenario to watch the board work.</td></tr>';
+  }
 
-      try {
-        const resp = await fetch(`/api/traces/${runId}`);
-        if (resp.ok) {
-          const data = await resp.json();
-          renderTraceTable(data.entries);
-          return;
-        }
-      } catch (e) {
-        console.log("Could not load trace, using sample trace.");
-      }
-      renderTraceTable(SAMPLE_TRACE);
-    }
+  entries.forEach(item => {
+    total += item.latency_ms || 0;
+    const st = (item.status || "ok").toLowerCase();
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td class="c-step">' + (item.step || "") + '</td>' +
+      '<td class="c-tool">' + (item.tool || "internal") + '</td>' +
+      '<td class="c-sum">' + (item.output_summary || "") + '</td>' +
+      '<td class="c-ms">' + (item.latency_ms || 0) + 'ms</td>' +
+      '<td class="c-st st-' + st + '">' + st + '</td>';
+    tbody.appendChild(tr);
+  });
 
-    async function triggerDemoScenario(scenarioId) {
-      document.getElementById("sms-bubble").innerText = `[Rebound] Triggering Scenario ${scenarioId}... Evaluating policy and external APIs...`;
-      try {
-        const resp = await fetch(`/api/demo/trigger?scenario=${scenarioId}`, { method: "POST" });
-        if (resp.ok) {
-          const data = await resp.json();
-          document.getElementById("run-id-badge").innerText = `run_id: ${data.run_id}`;
-          
-          await loadRunsDropdown();
-          document.getElementById("run-selector").value = data.run_id;
-          await loadSelectedRun();
-          return;
-        }
-      } catch (e) {
-        console.log("Local server offline; simulating scenario UI update.");
-      }
+  document.getElementById("trace-step-count").textContent = entries.length + " steps";
+  document.getElementById("trace-total-latency").textContent = total + "ms";
+  renderBoard(entries);
+}
 
-      // Offline simulation fallback for S02 / S05 / S21
-      if (scenarioId === "S02") {
-        document.getElementById("sms-bubble").innerText = "[Rebound] Your flight ZZ123 was cancelled. Alternative:\n1) ZZ202 arr 17:05 (+$450)\nReply 1 to book, or NO.";
-      } else if (scenarioId === "S05") {
-        document.getElementById("sms-bubble").innerText = "[Rebound] Flight ZZ123 cancelled. Options exceed spend ceiling of $1,000. Escalated to airline desk.";
-        document.getElementById("duffel-ref").innerText = "NONE (Ceiling)";
-        document.getElementById("duffel-ref").className = "font-mono font-bold text-rose-400 text-sm";
-      } else if (scenarioId === "S21") {
-        document.getElementById("sms-bubble").innerText = "[Rebound] Verification mismatch on new booking. Irreversible action aborted: original flight preserved.";
-        document.getElementById("duffel-cancelled").innerText = "PRESERVED";
-        document.getElementById("duffel-cancelled").className = "font-medium text-amber-400";
-      } else {
-        renderTraceTable(SAMPLE_TRACE);
-      }
-    }
-
-    async function sendSimulatedReply(reply) {
-      document.getElementById("sms-bubble").innerText = `You texted: "${reply}"\n\n[Rebound] Processing authorization. Holding seat and verifying tickets...`;
-      
-      try {
-        const formData = new URLSearchParams();
-        formData.append("From", "+15550000001");
-        formData.append("Body", reply);
-        const resp = await fetch("/sms", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: formData.toString()
-        });
-        if (resp.ok) {
-          setTimeout(async () => {
-            await loadRunsDropdown();
-            await loadSelectedRun();
-          }, 1000);
-          return;
-        }
-      } catch (e) {
-        // Fall back to client simulation
-      }
-
-      setTimeout(() => {
-        if (reply === "NO") {
-          document.getElementById("sms-bubble").innerText = "[Rebound] Understood. Rebooking aborted. Zero flights booked or charged.";
-          document.getElementById("duffel-ref").innerText = "NONE (Aborted)";
-          document.getElementById("duffel-ref").className = "font-mono font-bold text-rose-400 text-sm";
-        } else {
-          document.getElementById("sms-bubble").innerText = "[Rebound] Ticket confirmed on ZZ202! Ref: REF450123. Itinerary dispatched to Gmail.";
-          document.getElementById("duffel-ref").innerText = "REF450123";
-          document.getElementById("duffel-ref").className = "font-mono font-bold text-emerald-400 text-sm";
-        }
-      }, 700);
-    }
-
-    // Initialize on page load
-    document.addEventListener("DOMContentLoaded", async () => {
-      lucide.createIcons();
-      await loadRunsDropdown();
-      await loadSelectedRun();
+async function loadRunsDropdown() {
+  try {
+    const resp = await fetch("/api/runs");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const sel = document.getElementById("run-selector");
+    const current = sel.value;
+    sel.innerHTML = '<option value="sample_run">Sample run</option>';
+    (data.runs || []).forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r.run_id;
+      opt.textContent = r.run_id.replace(/^run_/, "") + " · " + r.action;
+      sel.appendChild(opt);
     });
-  </script>
+    if (current) sel.value = current;
+  } catch (e) { /* offline: the sample run stands alone */ }
+}
+
+async function loadSelectedRun() {
+  const runId = document.getElementById("run-selector").value;
+  document.getElementById("run-label").textContent = runId === "sample_run" ? "Sample run" : runId;
+
+  if (runId === "sample_run") { renderTraceTable(SAMPLE_TRACE); return; }
+  try {
+    const resp = await fetch("/api/traces/" + runId);
+    if (resp.ok) { const d = await resp.json(); renderTraceTable(d.entries || []); return; }
+  } catch (e) { /* fall through */ }
+  renderTraceTable(SAMPLE_TRACE);
+}
+
+async function triggerDemoScenario(scenarioId) {
+  const buttons = document.querySelectorAll(".controls button");
+  buttons.forEach(b => b.disabled = true);
+  document.getElementById("live-label").textContent = "Running " + scenarioId;
+  try {
+    const resp = await fetch("/api/demo/trigger?scenario=" + scenarioId, { method: "POST" });
+    if (resp.ok) {
+      const data = await resp.json();
+      await loadRunsDropdown();
+      document.getElementById("run-selector").value = data.run_id;
+      await loadSelectedRun();
+      return;
+    }
+    renderTraceTable(SAMPLE_TRACE);
+  } catch (e) {
+    renderTraceTable(SAMPLE_TRACE);
+  } finally {
+    buttons.forEach(b => b.disabled = false);
+    document.getElementById("live-label").textContent = "Flight recovery";
+  }
+}
+
+async function sendSimulatedReply(reply) {
+  document.getElementById("hold-copy").textContent = 'Reply "' + reply + '" sent. Resuming the run…';
+  try {
+    const body = new URLSearchParams();
+    body.append("From", "+15550000001");
+    body.append("Body", reply);
+    const resp = await fetch("/sms", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString()
+    });
+    if (resp.ok) {
+      setTimeout(async () => { await loadRunsDropdown(); await loadSelectedRun(); }, 1100);
+      return;
+    }
+  } catch (e) { /* offline */ }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  buildSteps();
+  await loadRunsDropdown();
+  await loadSelectedRun();
+});
+</script>
 </body>
 </html>
-

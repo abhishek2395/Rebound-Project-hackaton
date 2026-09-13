@@ -40,6 +40,15 @@ from tracing.tracer import Tracer
 logger = logging.getLogger("rebound.agent")
 
 
+def flight_code(carrier: str, flight_number: Optional[str]) -> str:
+    """ZZ + ZZ202 is ZZ202, not ZZZZ202 — feeds vary on whether the number carries its carrier."""
+    number = (flight_number or "").strip()
+    carrier = (carrier or "").strip()
+    if not number:
+        return carrier
+    return number if number.upper().startswith(carrier.upper()) else f"{carrier}{number}"
+
+
 class ReboundAgent:
     """The 9-step Rebound Disruption Recovery Orchestrator."""
     def __init__(
@@ -281,12 +290,27 @@ class ReboundAgent:
         options_text = []
         for idx, opt in enumerate(top_2, start=1):
             opt_delta = opt.total_amount - self.original_order_total
-            options_text.append(f"{idx}) {opt.carrier}{opt.flight_number or ''} arr {opt.arrives_at.strftime('%H:%M')}, +${opt_delta:.2f}")
+            options_text.append(f"{idx}) {flight_code(opt.carrier, opt.flight_number)} arr {opt.arrives_at.strftime('%H:%M')}, +${opt_delta:.2f}")
 
         sms_body = (
             f"[Rebound] Your {event.flight.carrier}{event.flight.number} was cancelled. Options:\n"
             + "\n".join(options_text)
             + "\nReply 1 or 2 to book, or NO. Expires in 10 min."
+        )
+
+        # Put the options the traveler was actually shown into the trace, so any
+        # reader of the run — the viewer included — can state them from evidence
+        # rather than reconstructing plausible-looking flights.
+        self.tracer.log_entry(
+            step="options:presented",
+            tool="policy.rank_survivors",
+            output_summary=" | ".join(
+                f"{idx}) {flight_code(o.carrier, o.flight_number)} "
+                f"{o.origin or event.flight.origin}-{o.destination or event.flight.destination} "
+                f"dep {o.departs_at.strftime('%H:%M')} arr {o.arrives_at.strftime('%H:%M')} "
+                f"{o.total_amount - self.original_order_total:+.2f}"
+                for idx, o in enumerate(top_2, start=1)
+            ),
         )
 
         try:
@@ -343,7 +367,7 @@ class ReboundAgent:
             tool="langgraph.interrupt",
             output_summary="Graph execution yielded to human SMS authorization.",
         )
-        return DecisionRecord(
+        record = DecisionRecord(
             event_id=event.event_id,
             action=ActionType.ASK,
             chosen_offer_id=chosen_offer.id,
@@ -353,6 +377,18 @@ class ReboundAgent:
             reasoning=reasoning,
             alternatives=[o.id for o in ranked_offers[1:3]],
         )
+        # A run parked awaiting a human is still a run: record it so it is
+        # visible to /api/runs and the trace viewer while it waits, not only
+        # once someone replies.
+        self.db.record_run(
+            run_id=self.run_id,
+            event_id=event.event_id,
+            action=record.action.value,
+            chosen_offer_id=chosen_offer.id,
+            cost_delta_usd=cost_delta,
+            trace_path=self.tracer.file_path,
+        )
+        return record
 
     def resume_with_sms_reply(
         self,
@@ -526,9 +562,9 @@ class ReboundAgent:
         # Step 8d: Gmail Itinerary & EU261 Compensation
         with self.tracer.span("email_dispatch", "gmail.send_itinerary_email", {"to": self.profile.email}) as s:
             itinerary_body = (
-                f"Subject: [Rebound] Rebooked: {chosen_offer.carrier}{chosen_offer.flight_number or ''}\n\n"
+                f"Subject: [Rebound] Rebooked: {flight_code(chosen_offer.carrier, chosen_offer.flight_number)}\n\n"
                 f"Your flight was disrupted. I have rebooked you:\n"
-                f"  {chosen_offer.carrier}{chosen_offer.flight_number or ''} {chosen_offer.origin or 'LHR'} -> {chosen_offer.destination or 'JFK'}\n"
+                f"  {flight_code(chosen_offer.carrier, chosen_offer.flight_number)} {chosen_offer.origin or 'LHR'} -> {chosen_offer.destination or 'JFK'}\n"
                 f"  Departs: {chosen_offer.departs_at.strftime('%H:%M')} | Arrives: {chosen_offer.arrives_at.strftime('%H:%M')}\n"
                 f"  Booking Reference: {booking.booking_reference} (Duffel: {booking.order_id})\n"
                 f"  Cost Difference: +${cost_delta:.2f}\n\n"
@@ -564,7 +600,7 @@ class ReboundAgent:
                 try:
                     self.twilio.send_sms(
                         to_phone=pickup.phone,
-                        body=f"[Rebound] ETA update for {self.profile.name}: New arrival is {chosen_offer.arrives_at.strftime('%H:%M')} on {chosen_offer.carrier}{chosen_offer.flight_number or ''}.",
+                        body=f"[Rebound] ETA update for {self.profile.name}: New arrival is {chosen_offer.arrives_at.strftime('%H:%M')} on {flight_code(chosen_offer.carrier, chosen_offer.flight_number)}.",
                         sms_type="pickup_notification",
                     )
                     s["summary"] = f"Notified pickup contact {pickup.name} at {pickup.phone}"
@@ -577,7 +613,7 @@ class ReboundAgent:
         with self.tracer.span("report", "twilio.send_sms", {"to": self.profile.phone}) as s:
             self.twilio.send_sms(
                 to_phone=self.profile.phone,
-                body=f"[Rebound] Rebooked on {chosen_offer.carrier}{chosen_offer.flight_number or ''} arriving {chosen_offer.arrives_at.strftime('%H:%M')}. Booking ref: {booking.booking_reference}. Itinerary emailed.",
+                body=f"[Rebound] Rebooked on {flight_code(chosen_offer.carrier, chosen_offer.flight_number)} arriving {chosen_offer.arrives_at.strftime('%H:%M')}. Booking ref: {booking.booking_reference}. Itinerary emailed.",
                 sms_type="summary",
             )
             s["summary"] = "Final summary SMS dispatched."

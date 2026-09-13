@@ -293,10 +293,12 @@ class TestPhase3(unittest.TestCase):
         self.assertEqual(res_trace.status_code, 200)
         self.assertIn("entries", res_trace.json())
 
-        # Viewer static endpoint
+        # Viewer static endpoint. Assert on substance, not letter-casing: the
+        # wordmark is uppercased in CSS, so the served bytes are mixed case.
         res_viewer = client.get("/viewer/")
         self.assertEqual(res_viewer.status_code, 200)
-        self.assertIn(b"REBOUND", res_viewer.content)
+        self.assertIn(b"rebound", res_viewer.content.lower())
+        self.assertIn(b"trace-table-body", res_viewer.content)
 
 
 if __name__ == "__main__":

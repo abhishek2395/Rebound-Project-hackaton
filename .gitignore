@@ -29,3 +29,6 @@ evals/junit.xml
 # macOS clutter
 .DS_Store
 
+
+# Design tooling scratch
+.impeccable/
