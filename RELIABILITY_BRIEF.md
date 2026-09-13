@@ -4,6 +4,7 @@
 **Judges:** Akira Tong & Phillip Li (*Arga Labs*), Userlens Founders  
 **Team:** Abhishek Jaiswal & Yash Jaiswal  
 **Evaluation Status:** **30 / 30 Scenarios Passing (100.0%)** with $\tau$-bench End-State Verification  
+**Demo video:** **[2-minute walkthrough on Google Drive →](https://drive.google.com/file/d/1C0eAd3R5TqTmxQ4wMSl9RNwBvbEFLPL_/view?usp=sharing)**  
 
 ---
 

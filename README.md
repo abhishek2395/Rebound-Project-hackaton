@@ -10,7 +10,7 @@
 
 Built for the **Multi-App AI Agent Hackathon** (hosted by Lemma & Comma Capital, judged by Akira Tong & Phillip Li of *Arga Labs*, and the founders of *Userlens*).
 
-📺 **2-minute demo video:** *(link posted after recording — see `docs/twilio_live.png` and `docs/duffel_live.png` for live-verification evidence)*
+📺 **2-minute demo video:** **[Watch on Google Drive →](https://drive.google.com/file/d/1C0eAd3R5TqTmxQ4wMSl9RNwBvbEFLPL_/view?usp=sharing)** *(supplemental live evidence: [`docs/twilio_live.png`](docs/twilio_live.png), [`docs/duffel_live.png`](docs/duffel_live.png))*
 
 ---
 
