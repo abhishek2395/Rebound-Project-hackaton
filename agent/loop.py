@@ -539,15 +539,23 @@ class ReboundAgent:
                         self.tracer.log_entry(step="claim:error", tool="gmail.draft", status=TraceStatus.RETRY, output_summary=str(e))
 
         # Step 8e: Notify Pickup Contact
+        # Non-critical: the ticket is already issued and verified by this point, so a
+        # courtesy SMS that fails (unverified number on a Twilio trial, carrier
+        # rejection) must never unwind a completed booking.
         if self.profile.contacts:
             pickup = self.profile.contacts[0]
             with self.tracer.span("pickup_notify", "twilio.send_sms", {"to": pickup.phone}) as s:
-                self.twilio.send_sms(
-                    to_phone=pickup.phone,
-                    body=f"[Rebound] ETA update for {self.profile.name}: New arrival is {chosen_offer.arrives_at.strftime('%H:%M')} on {chosen_offer.carrier}{chosen_offer.flight_number or ''}.",
-                    sms_type="pickup_notification",
-                )
-                s["summary"] = f"Notified pickup contact {pickup.name} at {pickup.phone}"
+                try:
+                    self.twilio.send_sms(
+                        to_phone=pickup.phone,
+                        body=f"[Rebound] ETA update for {self.profile.name}: New arrival is {chosen_offer.arrives_at.strftime('%H:%M')} on {chosen_offer.carrier}{chosen_offer.flight_number or ''}.",
+                        sms_type="pickup_notification",
+                    )
+                    s["summary"] = f"Notified pickup contact {pickup.name} at {pickup.phone}"
+                except Exception as e:
+                    logger.warning("Pickup contact notification failed: %s", e)
+                    s["summary"] = f"Pickup notification error (non-fatal): {e}"
+                    s["status"] = TraceStatus.RETRY
 
         # Step 9: Report & Summary SMS
         with self.tracer.span("report", "twilio.send_sms", {"to": self.profile.phone}) as s:

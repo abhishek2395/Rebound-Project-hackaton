@@ -8,16 +8,18 @@ import glob
 import json
 import logging
 import os
-from datetime import datetime, timezone
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from agent.loop import ReboundAgent
-from agent.models import DisruptionEvent
 from agent.models import CabinClass, DisruptionEvent, FlightOffer, TravelerProfile
 from app.db import Database
 from clients.fakes import FakeCalendar, FakeDuffel, FakeGmail, FakeTwilio
@@ -43,10 +45,79 @@ app.add_middleware(
 db = Database("rebound.db")
 
 
+# ---------------------------------------------------------------------------
+# Client selection
+#
+# Each integration uses its live client when that integration's credentials are
+# present, and its recording fake otherwise. CI and the eval suite ship no
+# credentials, so they stay fully offline and deterministic; a populated local
+# .env drives genuine Duffel / Twilio / Google calls through the same code.
+# ---------------------------------------------------------------------------
+
+def twilio_is_live() -> bool:
+    """True when Twilio credentials are complete enough to send a real SMS."""
+    return bool(
+        os.getenv("TWILIO_ACCOUNT_SID")
+        and os.getenv("TWILIO_AUTH_TOKEN")
+        and os.getenv("TWILIO_FROM_NUMBER")
+    )
+
+
+def select_clients(
+    duffel_fallback: Optional[Any] = None,
+    calendar_fallback: Optional[Any] = None,
+    gmail_fallback: Optional[Any] = None,
+    twilio_fallback: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Returns live clients where credentials allow, falling back to the given fakes."""
+    if os.getenv("DUFFEL_API_KEY"):
+        from clients.duffel import DuffelClient
+        duffel = DuffelClient()
+    else:
+        duffel = duffel_fallback or FakeDuffel()
+
+    if os.path.exists(os.getenv("GOOGLE_TOKEN_PATH", "token.json")):
+        from clients.gcal import GoogleCalendarClient
+        from clients.gmail import GmailClient
+        calendar = GoogleCalendarClient()
+        gmail = GmailClient()
+    else:
+        calendar = calendar_fallback or FakeCalendar()
+        gmail = gmail_fallback or FakeGmail()
+
+    if twilio_is_live():
+        from clients.twilio_sms import TwilioClient
+        twilio = TwilioClient()
+    else:
+        twilio = twilio_fallback or FakeTwilio()
+
+    logger.info(
+        "Client modes -> Duffel: %s | Calendar: %s | Gmail: %s | Twilio: %s",
+        type(duffel).__name__,
+        type(calendar).__name__,
+        type(gmail).__name__,
+        type(twilio).__name__,
+    )
+    return {"duffel": duffel, "calendar": calendar, "gmail": gmail, "twilio": twilio}
+
+
+def apply_phone_overrides(profile: TravelerProfile) -> TravelerProfile:
+    """Points SMS at real, Twilio-verified handsets without editing committed profiles."""
+    traveler_phone = os.getenv("TRAVELER_PHONE")
+    if traveler_phone:
+        profile.phone = traveler_phone
+    pickup_phone = os.getenv("PICKUP_PHONE")
+    if pickup_phone and profile.contacts:
+        profile.contacts[0].phone = pickup_phone
+    return profile
+
+
 def _run_agent_background(event: DisruptionEvent, run_id: str) -> None:
     """Background worker executing the agent graph outside the webhook request cycle."""
     try:
-        agent = ReboundAgent(db=db, run_id=run_id)
+        clients = select_clients()
+        agent = ReboundAgent(db=db, run_id=run_id, **clients)
+        agent.profile = apply_phone_overrides(agent.profile)
         record = agent.run(event)
         logger.info("Background run %s completed: action=%s", run_id, record.action.value)
     except Exception as e:
@@ -120,8 +191,13 @@ async def receive_twilio_sms_webhook(
     run_id = pending["run_id"]
 
     def _resume_background(ev_id: str, reply: str, r_id: str) -> None:
-        agent = ReboundAgent(db=db, run_id=r_id)
-        agent.resume_with_sms_reply(event_id=ev_id, reply=reply)
+        try:
+            agent = ReboundAgent(db=db, run_id=r_id, **select_clients())
+            agent.profile = apply_phone_overrides(agent.profile)
+            record = agent.resume_with_sms_reply(event_id=ev_id, reply=reply)
+            logger.info("Resumed run %s from SMS '%s': action=%s", r_id, reply, record.action.value)
+        except Exception as e:
+            logger.error("Resume of run %s failed: %s", r_id, e, exc_info=True)
 
     background_tasks.add_task(_resume_background, event_id, clean_body, run_id)
 
@@ -187,34 +263,43 @@ async def trigger_demo_event(
             )
 
         failures = mock_duffel_data.get("failures", [])
-        duf = FakeDuffel(offers=offers, failures=failures)
-
         cal_data = data.get("calendar", {})
         cal_deadline = datetime.fromisoformat(cal_data.get("deadline", "2026-09-15T09:00:00Z"))
-        cal = FakeCalendar(
-            deadline=cal_deadline,
-            injected_failure=cal_data.get("injected_failure"),
+
+        # Fixture-driven fakes are the fallback; live clients take over wherever
+        # credentials exist. For a live demo that means deterministic flight
+        # options from the fixture driving a real SMS to a real handset.
+        clients = select_clients(
+            duffel_fallback=FakeDuffel(offers=offers, failures=failures),
+            calendar_fallback=FakeCalendar(
+                deadline=cal_deadline,
+                injected_failure=cal_data.get("injected_failure"),
+            ),
+            gmail_fallback=FakeGmail(injected_failure=data.get("mock_gmail", {}).get("injected_failure")),
+            twilio_fallback=FakeTwilio(injected_failure=data.get("mock_twilio", {}).get("injected_failure")),
         )
-        gml = FakeGmail(injected_failure=data.get("mock_gmail", {}).get("injected_failure"))
-        twi = FakeTwilio(injected_failure=data.get("mock_twilio", {}).get("injected_failure"))
+
+        if profile:
+            profile = apply_phone_overrides(profile)
 
         agent = ReboundAgent(
             db=db,
-            duffel=duf,
-            calendar=cal,
-            twilio=twi,
-            gmail=gml,
             profile=profile,
             original_order_total=380.0,
+            **clients,
         )
 
-        sms_reply = data.get("sms_reply")
+        # A fixture's canned reply stands in for a human only while Twilio is
+        # faked. With live Twilio the agent must pause in ASK state and wait for
+        # the traveler's real inbound SMS to reach /sms.
+        sms_reply = None if twilio_is_live() else data.get("sms_reply")
         record = agent.run(event, sms_reply=sms_reply)
         return {
             "record": record.model_dump(),
             "run_id": agent.run_id,
             "scenario": scenario,
             "description": data.get("description", ""),
+            "awaiting_sms_reply": twilio_is_live() and record.action.value == "ask",
         }
 
     # Fallback default
