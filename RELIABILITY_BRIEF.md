@@ -117,6 +117,24 @@ def test_S21_verify_mismatch(self):
 
 Full per-scenario logs and assertion matrices are generated automatically in [**`EVAL_RESULTS.md`**](EVAL_RESULTS.md).
 
+### Live Sandbox Verification
+
+Beyond the 30-scenario harness (which runs against recording fakes), we ran a full end-to-end offer → book → verify → cancel loop against the **real Duffel test API** (`api.duffel.com/air`) via [`scripts/manual_booking.py`](scripts/manual_booking.py). All five HTTP calls returned 2xx:
+
+| Step | Endpoint | Result |
+|------|----------|--------|
+| 1 | `POST /air/offer_requests` (SFO → JFK) | 61 offers returned |
+| 2 | `POST /air/orders` | Order `ord_0000BANKiJbrIsrpzgR6Qq` created, booking ref `3ZPLMP` |
+| 3 | `GET /air/orders/{id}` | Passenger + itinerary verified |
+| 4 | `POST /air/order_cancellations` | Refund quoted (USD 171.89) |
+| 5 | `POST /air/order_cancellations/{id}/actions/confirm` | Cancellation confirmed |
+
+Duffel dashboard evidence:
+
+![Duffel dashboard showing order 3ZPLMP created and cancelled in the ZS-owned test account](docs/duffel_live.png)
+
+This proves the fake↔real client contract holds: the same code path that runs 30/30 in CI also drives a real supplier round-trip.
+
 ---
 
 ## 6. Post-Mortem Case Studies
