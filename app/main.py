@@ -259,6 +259,16 @@ async def trigger_demo_event(
             event_data["order_id"] = seeded_order_id
 
         event = DisruptionEvent.model_validate(event_data)
+
+        # DEMO_ORIGINAL_TOTAL — the real price of the seeded original ticket,
+        # so cost delta is computed against what was actually paid rather than
+        # the fixture's synthetic baseline.
+        original_order_total = float(os.getenv("DEMO_ORIGINAL_TOTAL", "380.0"))
+
+        # DEMO_APPROVAL_THRESHOLD — for the ask-flow demo shot, force the
+        # profile's approval threshold low enough that live Duffel prices
+        # will exceed it. Skipped when unset (uses profile's threshold).
+        approval_override = os.getenv("DEMO_APPROVAL_THRESHOLD")
         profile = TravelerProfile.model_validate(data["profile"]) if "profile" in data else None
 
         mock_duffel_data = data.get("mock_duffel", {})
@@ -296,11 +306,15 @@ async def trigger_demo_event(
 
         if profile:
             profile = apply_phone_overrides(profile)
+            if approval_override:
+                # Force the ask path to fire regardless of live Duffel pricing
+                # (real Duffel offers can be cheaper than the fixture assumed).
+                profile.mandate.approval_threshold_usd = float(approval_override)
 
         agent = ReboundAgent(
             db=db,
             profile=profile,
-            original_order_total=380.0,
+            original_order_total=original_order_total,
             **clients,
         )
 

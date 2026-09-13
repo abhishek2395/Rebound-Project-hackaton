@@ -62,13 +62,13 @@ def seed_duffel_order() -> tuple[str, str]:
         "Content-Type": "application/json",
     }
 
-    step(1, "Book real Duffel 'original' order (SFO → JFK)")
+    step(1, "Book real Duffel 'original' order (LHR → JFK — matches S02 fixture)")
     with httpx.Client(timeout=60.0, headers=headers) as client:
         r = client.post(
             f"{DUFFEL_API_URL}/offer_requests?return_offers=true",
             json={
                 "data": {
-                    "slices": [{"origin": "SFO", "destination": "JFK", "departure_date": depart}],
+                    "slices": [{"origin": "LHR", "destination": "JFK", "departure_date": depart}],
                     "passengers": [{"type": "adult"}],
                     "cabin_class": "economy",
                 }
@@ -111,8 +111,10 @@ def seed_duffel_order() -> tuple[str, str]:
         )
         r.raise_for_status()
         order = r.json()["data"]
-        print(f"   ✓ Order {order['id']}  booking_ref={order.get('booking_reference')}")
-        return order["id"], order.get("booking_reference", "")
+        total_amount = float(order.get("total_amount") or offer["total_amount"])
+        currency = order.get("total_currency") or offer["total_currency"]
+        print(f"   ✓ Order {order['id']}  booking_ref={order.get('booking_reference')}  paid={total_amount} {currency}")
+        return order["id"], order.get("booking_reference", ""), total_amount
 
 
 def seed_calendar_events(order_id: str, booking_ref: str) -> str:
@@ -183,12 +185,13 @@ def seed_calendar_events(order_id: str, booking_ref: str) -> str:
 
 
 def main() -> None:
-    order_id, booking_ref = seed_duffel_order()
+    order_id, booking_ref, total_amount = seed_duffel_order()
     flight_event_id = seed_calendar_events(order_id, booking_ref)
 
     seeds = {
         "DEMO_ORIGINAL_ORDER_ID": order_id,
         "DEMO_ORIGINAL_BOOKING_REF": booking_ref,
+        "DEMO_ORIGINAL_TOTAL": total_amount,
         "DEMO_CALENDAR_EVENT_ID": flight_event_id,
         "seeded_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -196,10 +199,13 @@ def main() -> None:
 
     print("\n✅ Real state seeded.")
     print(f"   Seeds saved to {SEEDS_FILE} (git-ignored).")
-    print("\nPaste these into the shell that will run the server, then restart:")
+    print("\nExport these in the shell that will run the server, then restart:")
     print(f"   export DEMO_ORIGINAL_ORDER_ID={order_id}")
+    print(f"   export DEMO_ORIGINAL_TOTAL={total_amount}")
     print(f"   export DEMO_CALENDAR_EVENT_ID={flight_event_id}")
-    print("\nOr the server will auto-load them from .demo_seeds.json on start.")
+    print("\nTo GUARANTEE the WhatsApp approval flow (S02) fires regardless of live")
+    print("Duffel prices, also export a low approval threshold, e.g.:")
+    print("   export DEMO_APPROVAL_THRESHOLD=25")
 
 
 if __name__ == "__main__":
