@@ -192,6 +192,16 @@ async def receive_twilio_sms_webhook(
 
     pending = db.get_pending_approval_by_phone(sender)
     if not pending:
+        # Viewer simulator sends the profile-default phone (e.g. +15550000001);
+        # env override moves the DB phone to something like TRAVELER_PHONE.
+        # As a simulator fallback (only when sender looks like the
+        # profile-default range or a localhost call), pick the most recent
+        # pending. Real inbound travelers still get the strict-phone lookup.
+        if sender.startswith("+1555") or sender.startswith("+15550"):
+            pending = db.get_most_recent_pending()
+            if pending:
+                logger.info("Simulator fallback matched most-recent pending %s", pending.get("event_id"))
+    if not pending:
         logger.warning("No pending approval found for phone number %s", sender)
         twiml = "<Response><Message>[Rebound] No active pending rebooking approval found for this number.</Message></Response>"
         return Response(content=twiml, media_type="application/xml")

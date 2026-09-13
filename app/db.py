@@ -181,9 +181,20 @@ class Database:
                 return d
             return None
 
-    def normalize_all_phones_for_testing(self) -> None:
-        """Test helper — not used by production paths."""
-        pass
+    def get_most_recent_pending(self) -> Optional[Dict[str, Any]]:
+        """Simulator fallback — used by the viewer's phone widget so a
+        click-based reply always finds the just-created pending regardless
+        of what phone number the widget synthesized."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM pending_approvals WHERE status = 'pending' ORDER BY created_at DESC LIMIT 1"
+            )
+            row = cursor.fetchone()
+            if row:
+                d = dict(row)
+                d["options"] = json.loads(d["options_json"])
+                return d
+            return None
 
     def get_pending_approval_by_event_id(self, event_id: str) -> Optional[Dict[str, Any]]:
         """Fetches a pending approval row by its primary key (event_id)."""
