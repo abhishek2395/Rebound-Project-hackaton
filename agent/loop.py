@@ -283,10 +283,18 @@ class ReboundAgent:
             opt_delta = opt.total_amount - self.original_order_total
             options_text.append(f"{idx}) {opt.carrier}{opt.flight_number or ''} arr {opt.arrives_at.strftime('%H:%M')}, +${opt_delta:.2f}")
 
+        # Dynamic reply-instructions: the SMS must not offer "Reply 2" when
+        # only one survivor made it past the hard filters. Bug caught during
+        # the live WhatsApp round-trip on 2026-09-13.
+        if len(top_2) == 1:
+            reply_line = "Reply 1 to book, or NO."
+        else:
+            reply_line = "Reply 1 or 2 to book, or NO."
+
         sms_body = (
             f"[Rebound] Your {event.flight.carrier}{event.flight.number} was cancelled. Options:\n"
             + "\n".join(options_text)
-            + "\nReply 1 or 2 to book, or NO. Expires in 10 min."
+            + f"\n{reply_line} Expires in 10 min."
         )
 
         try:

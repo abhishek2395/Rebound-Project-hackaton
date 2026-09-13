@@ -178,6 +178,23 @@ Draft round-trip against `gmail.googleapis.com` under the same OAuth token. All 
 
 The manual test creates a Draft (not a Send) to avoid any real email leaving the account. Rebound's Step 8d code path also creates the EU261 compensation claim as a draft, using the identical MIME builder.
 
+#### Twilio — live-verified over WhatsApp
+
+A live human-in-the-loop round-trip against real Twilio, routed through WhatsApp because unregistered US toll-free A2P SMS is now blocked at the carrier layer (see [Failure #7 above](#6-failures-found-during-the-build)). The agent's channel abstraction meant no application code changed — only `TWILIO_CHANNEL=whatsapp`. Every routing branch was exercised in a single 25-minute session:
+
+![Live WhatsApp round-trip: approval requests, human replies, booking confirmations, and escalations](docs/twilio_live.png)
+
+| Message | Path exercised |
+|---|---|
+| Setup ping "approval channel is live" | Outbound send |
+| Approval request "+$450 · Reply 1 or 2 or NO" | Over-threshold → hold placed, SMS body composed |
+| Human reply `1` at 3:22 PM | Inbound `/sms` webhook → **stateless resume** (new agent process, no in-memory state) |
+| "Rebooked on ZZZZ202 arriving 20:30. Booking ref: REF330930. Itinerary emailed." | Hold converted → Duffel confirmed order → Gmail dispatch |
+| "Could not automatically rebook: No flights found arriving before deadline within constraints." | 0-viable-option **escalate** path |
+| "Rebooked on ZZZZ201 arriving 17:05. Booking ref: REF331460." | Auto-book (Δ ≤ $300) path |
+
+All four decision branches (`notify_only`, `book`, `ask → book`, `escalate`) delivered end-to-end against real infrastructure. **This session also caught the bug documented as Failure #8** — the hardcoded "Reply 1 or 2" prompt string that was shown even when only one option existed.
+
 #### Coverage snapshot
 
 | App | Client | Fakes (30 fixtures) | Live sandbox |
@@ -185,7 +202,7 @@ The manual test creates a Draft (not a Send) to avoid any real email leaving the
 | Duffel | `clients/duffel.py` | ✅ | ✅ order `3ZPLMP` |
 | Google Calendar | `clients/gcal.py` | ✅ | ✅ event `mq632u…evfqg` |
 | Gmail | `clients/gmail.py` | ✅ | ✅ draft `r2812…61865` |
-| Twilio SMS | `clients/twilio_sms.py` | ✅ | Pending live smoke test |
+| Twilio (WhatsApp) | `clients/twilio_sms.py` | ✅ | ✅ human reply → booking `REF330930` |
 
 ---
 
@@ -206,6 +223,8 @@ Every bug below was real, was found during this build, and is fixed in the commi
 **6. A dependency that existed only on one laptop.** `POST /sms` parses Twilio's form encoding, which FastAPI needs `python-multipart` for. It was missing from `requirements.txt` and worked purely because it happened to be installed globally on the developer machine. On a clean checkout — a judge's, or CI's — the webhook would have failed at request time with no import error to explain why.
 
 **7. A messaging channel that was never going to deliver.** Our first live SMS attempt returned `30032`: US toll-free numbers now require Toll-Free Verification, which takes days. The alternate destination was an Indian number, where unregistered international A2P traffic is filtered under DLT rules. Both are policy walls, not bugs, and neither is solvable in a hackathon window. We routed the same messages over Twilio's WhatsApp channel instead — a config switch, `TWILIO_CHANNEL=whatsapp`, that the agent never sees. **Lesson: verify the delivery channel end-to-end before building on the assumption that it works.**
+
+**8. An approval SMS that promised options it never showed.** Caught during the live WhatsApp round-trip: the approval message hardcoded the string `"Reply 1 or 2 to book, or NO."` regardless of how many offers survived the hard filters. When only one option made it through, the traveler was still told they could reply "2" — and the code parsed a "2" reply as a valid choice, silently booking option 1 anyway. Fixed by generating the reply instructions from `len(top_2)` (`agent/loop.py`), so a single-option approval now reads `"Reply 1 to book, or NO."` and a reply of "2" is rejected. **Lesson: a hardcoded string in an operator-facing surface will diverge from the actual data the operator is holding.**
 
 ---
 
