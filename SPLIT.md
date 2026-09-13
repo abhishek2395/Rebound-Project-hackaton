@@ -21,7 +21,7 @@ Hard deadline: **3:30 PM feature freeze**, submit by **4:45 PM**.
 - Add the CI badge URL for the new workflow: `[![CI](https://github.com/abhishek2395/Rebound-Project-hackaton/actions/workflows/evals.yml/badge.svg)](...)`.
 
 **A3. Record the 2-minute demo video — 45 min**
-- Script is in `REBOUND_HACKATHON_PLAYBOOK.md` Section 12 — follow it beat for beat.
+- Script beats: title card (0:00) → fire the webhook (0:12) → live trace viewer showing calendar-deadline + Duffel search + filter + rank (0:20) → phone SMS approval, reply "1" (0:45) → book, verify, cancel old, calendar + email update (1:00) → EVAL_RESULTS 30-scenario table (1:20) → failing rows honesty (1:40) → architecture close (1:52). Keep phone reply real.
 - Record 2-3 takes with QuickTime; keep the cleanest.
 - Upload unlisted YouTube or Loom; put link at top of README.
 - **Do this LAST** — after Yash's Twilio and trace viewer work is merged.
