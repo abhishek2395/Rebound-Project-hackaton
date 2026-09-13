@@ -108,8 +108,15 @@ class DuffelClient(BaseClient):
             try:
                 slice_info = item.get("slices", [{}])[0]
                 segments = slice_info.get("segments", [])
-                dep_time = datetime.fromisoformat(slice_info.get("departing_at"))
-                arr_time = datetime.fromisoformat(slice_info.get("arriving_at"))
+                if not segments:
+                    logger.warning("Skipping Duffel offer %s: no segments", item.get("id"))
+                    continue
+                # Duffel puts departing_at/arriving_at on segments, not on the slice
+                # (the slice-level fields are `duration` and origin/destination only).
+                # First segment's departing_at is the slice's real departure; last
+                # segment's arriving_at is the slice's real arrival.
+                dep_time = datetime.fromisoformat(segments[0]["departing_at"])
+                arr_time = datetime.fromisoformat(segments[-1]["arriving_at"])
                 carrier = item.get("owner", {}).get("iata_code", "ZZ")
                 
                 parsed_offers.append(FlightOffer(
@@ -255,32 +262,51 @@ class DuffelClient(BaseClient):
                 data = self._handle_response_status(resp, "payments.create")
             order_id = hold_order_id
         else:
-            with httpx.Client(timeout=self.timeout) as client:
-                # Direct booking flow
+            # Direct booking flow. Three Duffel v2 constraints the naive path
+            # missed and live testing surfaced (2026-09-13):
+            #   1. Each passenger must carry the `id` from the offer (Duffel
+            #      won't correlate them by name), so we GET the offer first
+            #      to read `passengers[].id`.
+            #   2. Payment `amount`/`currency` must match the offer's totals
+            #      exactly; a hardcoded "500.00" is rejected or wrong-charged.
+            #   3. Phone numbers in the reserved US +1-555 fictional range
+            #      fail Duffel's validator, so we fall back to a Duffel-safe
+            #      contact number when the profile carries one.
+            with httpx.Client(timeout=self.timeout, headers=self.headers) as client:
+                offer_resp = client.get(f"{DUFFEL_API_URL}/offers/{offer_id}")
+                offer_data = self._handle_response_status(offer_resp, "offers.get")["data"]
+
+                passenger_id = offer_data["passengers"][0]["id"]
+                total_amount = offer_data["total_amount"]
+                total_currency = offer_data["total_currency"]
+
                 name_parts = profile.name.split()
+                phone = profile.phone
+                if phone.startswith("+1555") or phone.startswith("+1-555"):
+                    phone = "+14158675309"  # Duffel-safe US-format fallback
+
                 payload = {
                     "data": {
+                        "type": "instant",
                         "selected_offers": [offer_id],
                         "passengers": [
                             {
-                                "type": "adult",
+                                "id": passenger_id,
                                 "title": "mr",
                                 "family_name": name_parts[-1] if len(name_parts) > 1 else "Rivera",
                                 "given_name": name_parts[0],
                                 "born_on": "1990-01-01",
                                 "gender": "m",
                                 "email": profile.email,
-                                "phone_number": profile.phone,
+                                "phone_number": phone,
                             }
                         ],
-                        "payments": [{"type": "balance", "currency": "USD", "amount": "500.00"}],
+                        "payments": [
+                            {"type": "balance", "amount": total_amount, "currency": total_currency}
+                        ],
                     }
                 }
-                resp = client.post(
-                    f"{DUFFEL_API_URL}/orders",
-                    headers=self.headers,
-                    json=payload,
-                )
+                resp = client.post(f"{DUFFEL_API_URL}/orders", json=payload)
                 data = self._handle_response_status(resp, "orders.create")
                 order_id = data.get("data", {}).get("id")
 

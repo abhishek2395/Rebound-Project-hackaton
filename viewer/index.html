@@ -401,7 +401,7 @@ select { padding-right: 30px; }
     <div class="opts" id="hold-opts"></div>
     <div class="keys">
       <button class="key-amber" onclick="sendSimulatedReply('1')">Reply 1</button>
-      <button onclick="sendSimulatedReply('2')">Reply 2</button>
+      <button id="key-2" onclick="sendSimulatedReply('2')">Reply 2</button>
       <button class="key-void" onclick="sendSimulatedReply('NO')">Reply NO</button>
     </div>
   </section>
@@ -688,6 +688,8 @@ function renderBoard(entries) {
       });
       // the board's arrival is option 1's, which is the held seat
       document.getElementById("rep-time").textContent = rows[0].t.replace("arr ", "");
+      // never offer a reply the traveler's own message didn't offer
+      document.getElementById("key-2").hidden = rows.length < 2;
     } else {
       const row = document.createElement("div");
       row.className = "opt";

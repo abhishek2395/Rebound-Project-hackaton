@@ -292,10 +292,18 @@ class ReboundAgent:
             opt_delta = opt.total_amount - self.original_order_total
             options_text.append(f"{idx}) {flight_code(opt.carrier, opt.flight_number)} arr {opt.arrives_at.strftime('%H:%M')}, +${opt_delta:.2f}")
 
+        # Dynamic reply-instructions: the SMS must not offer "Reply 2" when
+        # only one survivor made it past the hard filters. Bug caught during
+        # the live WhatsApp round-trip on 2026-09-13.
+        if len(top_2) == 1:
+            reply_line = "Reply 1 to book, or NO."
+        else:
+            reply_line = "Reply 1 or 2 to book, or NO."
+
         sms_body = (
             f"[Rebound] Your {event.flight.carrier}{event.flight.number} was cancelled. Options:\n"
             + "\n".join(options_text)
-            + "\nReply 1 or 2 to book, or NO. Expires in 10 min."
+            + f"\n{reply_line} Expires in 10 min."
         )
 
         # Put the options the traveler was actually shown into the trace, so any
@@ -517,7 +525,19 @@ class ReboundAgent:
                 logger.warning("Order verification check failed with exception: %s", e)
                 verified_order = None
 
-            if not verified_order or verified_order.get("status") not in ("confirmed", "active"):
+            # Duffel v2 orders don't expose a `status` string; the fake used
+            # to. An order is considered live when it has a `booking_reference`
+            # AND `cancelled_at` is falsy. We also accept the legacy status
+            # values for the fake path.
+            def _order_is_active(order: dict) -> bool:
+                if not order:
+                    return False
+                legacy_status = order.get("status")
+                if legacy_status in ("confirmed", "active"):
+                    return True
+                return bool(order.get("booking_reference")) and not order.get("cancelled_at")
+
+            if not _order_is_active(verified_order):
                 self.tracer.log_entry(
                     step="verify:failed",
                     tool="duffel.orders.get",
