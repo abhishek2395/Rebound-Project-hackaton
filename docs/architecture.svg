@@ -1,0 +1,194 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="arrow-safe" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#059669"/>
+    </marker>
+  </defs>
+
+  <rect width="1400" height="900" fill="#f8fafc"/>
+
+  <!-- Title -->
+  <text x="700" y="52" text-anchor="middle" font-size="26" font-weight="700" fill="#0f172a">Rebound — 9-Step Agent DAG</text>
+  <text x="700" y="78" text-anchor="middle" font-size="14" fill="#64748b">Autonomous flight rebooking · 4 apps · deterministic guardrails · verifiable ordering</text>
+
+  <!-- ═══════════════ LEFT COLUMN: the 9 steps ═══════════════ -->
+  <text x="80" y="125" font-size="12" font-weight="700" fill="#475569" letter-spacing="2">AGENT LOOP</text>
+
+  <!-- Step 1 -->
+  <rect x="80" y="140" width="260" height="60" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <circle cx="110" cy="170" r="14" fill="#3b82f6"/>
+  <text x="110" y="175" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">1</text>
+  <text x="140" y="167" font-size="16" font-weight="600" fill="#0f172a">Ingest</text>
+  <text x="140" y="186" font-size="12" fill="#64748b">Webhook · dedupe by event_id</text>
+
+  <!-- Step 2 -->
+  <rect x="80" y="215" width="260" height="60" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <circle cx="110" cy="245" r="14" fill="#3b82f6"/>
+  <text x="110" y="250" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">2</text>
+  <text x="140" y="242" font-size="16" font-weight="600" fill="#0f172a">Context</text>
+  <text x="140" y="261" font-size="12" fill="#64748b">Load profile · read Calendar</text>
+
+  <!-- Step 3 -->
+  <rect x="80" y="290" width="260" height="60" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <circle cx="110" cy="320" r="14" fill="#3b82f6"/>
+  <text x="110" y="325" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">3</text>
+  <text x="140" y="317" font-size="16" font-weight="600" fill="#0f172a">Assess</text>
+  <text x="140" y="336" font-size="12" fill="#64748b">Is any action needed?</text>
+
+  <!-- Step 4 -->
+  <rect x="80" y="365" width="260" height="60" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <circle cx="110" cy="395" r="14" fill="#3b82f6"/>
+  <text x="110" y="400" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">4</text>
+  <text x="140" y="392" font-size="16" font-weight="600" fill="#0f172a">Search</text>
+  <text x="140" y="411" font-size="12" fill="#64748b">Duffel offer_requests</text>
+
+  <!-- Step 5 -->
+  <rect x="80" y="440" width="260" height="60" rx="10" fill="#faf5ff" stroke="#a855f7" stroke-width="1.5"/>
+  <circle cx="110" cy="470" r="14" fill="#a855f7"/>
+  <text x="110" y="475" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">5</text>
+  <text x="140" y="467" font-size="16" font-weight="600" fill="#0f172a">Rank</text>
+  <text x="140" y="486" font-size="12" fill="#64748b">Code filters → LLM ranks</text>
+
+  <!-- Step 6 -->
+  <rect x="80" y="515" width="260" height="60" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <circle cx="110" cy="545" r="14" fill="#f59e0b"/>
+  <text x="110" y="550" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">6</text>
+  <text x="140" y="542" font-size="16" font-weight="600" fill="#0f172a">Decide</text>
+  <text x="140" y="561" font-size="12" fill="#64748b">Mandate check (Python only)</text>
+
+  <!-- ═══════════════ MIDDLE COLUMN: Decision policy ═══════════════ -->
+  <text x="410" y="125" font-size="12" font-weight="700" fill="#475569" letter-spacing="2">DECISION POLICY</text>
+
+  <rect x="410" y="140" width="300" height="220" rx="12" fill="#ffffff" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="430" y="170" font-size="14" font-weight="700" fill="#0f172a">Hard filters (code, not prompts)</text>
+  <text x="430" y="192" font-size="13" fill="#334155">✓ Arrival ≤ deadline − 60 min</text>
+  <text x="430" y="212" font-size="13" fill="#334155">✓ Layovers ≤ max_layovers</text>
+  <text x="430" y="232" font-size="13" fill="#334155">✓ Cabin matches or upgrades</text>
+  <text x="430" y="252" font-size="13" fill="#334155">✓ Cost delta ≤ spend ceiling</text>
+
+  <line x1="430" y1="275" x2="690" y2="275" stroke="#e2e8f0"/>
+
+  <text x="430" y="298" font-size="14" font-weight="700" fill="#0f172a">Routing</text>
+  <text x="430" y="320" font-size="13" fill="#334155">Δ ≤ $300 → <tspan font-weight="600" fill="#059669">book</tspan></text>
+  <text x="430" y="340" font-size="13" fill="#334155">Δ ≤ $800 → <tspan font-weight="600" fill="#a855f7">ask via SMS</tspan></text>
+  <text x="430" y="360" font-size="13" fill="#334155">Δ &gt; $800 · 0 opts → <tspan font-weight="600" fill="#dc2626">escalate</tspan></text>
+
+  <!-- Step 7 -->
+  <rect x="410" y="395" width="300" height="60" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+  <circle cx="440" cy="425" r="14" fill="#059669"/>
+  <text x="440" y="430" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">7</text>
+  <text x="470" y="422" font-size="16" font-weight="600" fill="#065f46">Act</text>
+  <text x="470" y="441" font-size="12" fill="#047857">Book → Verify → Cancel old</text>
+
+  <!-- Step 8 -->
+  <rect x="410" y="470" width="300" height="60" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+  <circle cx="440" cy="500" r="14" fill="#059669"/>
+  <text x="440" y="505" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">8</text>
+  <text x="470" y="497" font-size="16" font-weight="600" fill="#065f46">Verify</text>
+  <text x="470" y="516" font-size="12" fill="#047857">GET order · mismatch aborts cancel</text>
+
+  <!-- Step 9 -->
+  <rect x="410" y="545" width="300" height="60" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <circle cx="440" cy="575" r="14" fill="#3b82f6"/>
+  <text x="440" y="580" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">9</text>
+  <text x="470" y="572" font-size="16" font-weight="600" fill="#0f172a">Report</text>
+  <text x="470" y="591" font-size="12" fill="#64748b">JSONL trace · timeline viewer</text>
+
+  <!-- ═══════════════ RIGHT COLUMN: 4 apps ═══════════════ -->
+  <text x="780" y="125" font-size="12" font-weight="700" fill="#475569" letter-spacing="2">INTEGRATED APPS</text>
+
+  <!-- Duffel -->
+  <rect x="780" y="140" width="290" height="90" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="800" y="172" font-size="20" fill="#3b82f6">✈</text>
+  <text x="830" y="172" font-size="16" font-weight="600" fill="#0f172a">Duffel Flights</text>
+  <text x="800" y="195" font-size="12" fill="#64748b">Search · Hold · Book · Verify · Cancel</text>
+  <text x="800" y="213" font-size="12" fill="#64748b">Retry 5xx: 3 tries, exp backoff</text>
+
+  <!-- Google Calendar -->
+  <rect x="1090" y="140" width="290" height="90" rx="10" fill="#ffffff" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="1110" y="172" font-size="20" fill="#22c55e">📅</text>
+  <text x="1140" y="172" font-size="16" font-weight="600" fill="#0f172a">Google Calendar</text>
+  <text x="1110" y="195" font-size="12" fill="#64748b">Read deadline · patch flight event</text>
+  <text x="1110" y="213" font-size="12" fill="#64748b">503 → default buffer fallback</text>
+
+  <!-- Gmail -->
+  <rect x="780" y="245" width="290" height="90" rx="10" fill="#ffffff" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="800" y="277" font-size="20" fill="#ef4444">✉</text>
+  <text x="830" y="277" font-size="16" font-weight="600" fill="#0f172a">Gmail</text>
+  <text x="800" y="300" font-size="12" fill="#64748b">Itinerary email · EU261 claim draft</text>
+  <text x="800" y="318" font-size="12" fill="#64748b">Non-critical: booking stands on fail</text>
+
+  <!-- Twilio -->
+  <rect x="1090" y="245" width="290" height="90" rx="10" fill="#ffffff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="1110" y="277" font-size="20" fill="#a855f7">📱</text>
+  <text x="1140" y="277" font-size="16" font-weight="600" fill="#0f172a">Twilio SMS</text>
+  <text x="1110" y="300" font-size="12" fill="#64748b">Approval req · 1/2/NO parse</text>
+  <text x="1110" y="318" font-size="12" fill="#64748b">Down → email fallback</text>
+
+  <!-- Right side: DAG summary -->
+  <text x="780" y="380" font-size="12" font-weight="700" fill="#475569" letter-spacing="2">HOW APPS PLUG IN</text>
+  <rect x="780" y="395" width="600" height="210" rx="12" fill="#0f172a"/>
+  <text x="805" y="425" font-size="13" font-weight="600" fill="#e2e8f0">Step 2 — Context</text>
+  <text x="805" y="445" font-size="12" fill="#94a3b8">→ Google Calendar (read deadline)</text>
+
+  <text x="805" y="475" font-size="13" font-weight="600" fill="#e2e8f0">Steps 4–5 — Search &amp; Rank</text>
+  <text x="805" y="495" font-size="12" fill="#94a3b8">→ Duffel offer_requests</text>
+
+  <text x="805" y="525" font-size="13" font-weight="600" fill="#e2e8f0">Step 6 — Decide</text>
+  <text x="805" y="545" font-size="12" fill="#94a3b8">→ Twilio SMS (if approval needed)</text>
+
+  <text x="805" y="575" font-size="13" font-weight="600" fill="#e2e8f0">Step 7 — Act</text>
+  <text x="805" y="595" font-size="12" fill="#94a3b8">→ Duffel book · Calendar patch · Gmail send</text>
+
+  <!-- ═══════════════ BOTTOM BAND: Safety invariants ═══════════════ -->
+  <rect x="80" y="640" width="1300" height="180" rx="12" fill="#0f172a"/>
+  <text x="105" y="672" font-size="13" font-weight="700" fill="#e2e8f0" letter-spacing="1.5">SAFETY INVARIANTS PROVEN BY THE 30-SCENARIO HARNESS</text>
+
+  <!-- Invariant 1 -->
+  <text x="105" y="710" font-size="13" font-weight="700" fill="#38bdf8">Idempotency</text>
+  <text x="105" y="730" font-size="12" fill="#cbd5e1">Duplicate webhook →</text>
+  <text x="105" y="748" font-size="12" fill="#cbd5e1">exactly one booking</text>
+  <text x="105" y="778" font-size="10" fill="#64748b" font-family="'SF Mono', ui-monospace, monospace">S10</text>
+
+  <!-- Invariant 2 -->
+  <text x="365" y="710" font-size="13" font-weight="700" fill="#4ade80">Ordering</text>
+  <text x="365" y="730" font-size="12" fill="#cbd5e1">Book → Verify → Cancel;</text>
+  <text x="365" y="748" font-size="12" fill="#cbd5e1">never the reverse</text>
+  <text x="365" y="778" font-size="10" fill="#64748b" font-family="'SF Mono', ui-monospace, monospace">S20 · S21</text>
+
+  <!-- Invariant 3 -->
+  <text x="625" y="710" font-size="13" font-weight="700" fill="#facc15">Guardrails</text>
+  <text x="625" y="730" font-size="12" fill="#cbd5e1">Deadline, layovers, cabin,</text>
+  <text x="625" y="748" font-size="12" fill="#cbd5e1">spend — enforced in code</text>
+  <text x="625" y="778" font-size="10" fill="#64748b" font-family="'SF Mono', ui-monospace, monospace">S05 · S09 · S15</text>
+
+  <!-- Invariant 4 -->
+  <text x="885" y="710" font-size="13" font-weight="700" fill="#fb7185">Retries</text>
+  <text x="885" y="730" font-size="12" fill="#cbd5e1">3 tries, exp backoff,</text>
+  <text x="885" y="748" font-size="12" fill="#cbd5e1">POST-2xx never retried</text>
+  <text x="885" y="778" font-size="10" fill="#64748b" font-family="'SF Mono', ui-monospace, monospace">S11 · S12</text>
+
+  <!-- Invariant 5 -->
+  <text x="1145" y="710" font-size="13" font-weight="700" fill="#c084fc">Graceful Degrade</text>
+  <text x="1145" y="730" font-size="12" fill="#cbd5e1">Calendar / Gmail down →</text>
+  <text x="1145" y="748" font-size="12" fill="#cbd5e1">booking still stands</text>
+  <text x="1145" y="778" font-size="10" fill="#64748b" font-family="'SF Mono', ui-monospace, monospace">S27 · S28 · S29</text>
+
+  <!-- Arrows (agent loop, left column) -->
+  <line x1="210" y1="200" x2="210" y2="215" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="210" y1="275" x2="210" y2="290" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="210" y1="350" x2="210" y2="365" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="210" y1="425" x2="210" y2="440" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="210" y1="500" x2="210" y2="515" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Cross to Decision policy panel -->
+  <line x1="340" y1="545" x2="410" y2="545" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+  <!-- Middle column vertical flow -->
+  <line x1="560" y1="360" x2="560" y2="395" stroke="#059669" stroke-width="1.5" marker-end="url(#arrow-safe)"/>
+  <line x1="560" y1="455" x2="560" y2="470" stroke="#059669" stroke-width="1.5" marker-end="url(#arrow-safe)"/>
+  <line x1="560" y1="530" x2="560" y2="545" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+</svg>

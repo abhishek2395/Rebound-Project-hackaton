@@ -2,8 +2,14 @@
 
 **Multi-App AI Agent Hackathon Submission**  
 **Judges:** Akira Tong & Phillip Li (*Arga Labs*), Userlens Founders  
-**Team:** Yash Jaiswal & Team  
+**Team:** Abhishek Jaiswal & Yash Jaiswal  
 **Evaluation Status:** **30 / 30 Scenarios Passing (100.0%)** with $\tau$-bench End-State Verification  
+
+---
+
+## Architecture at a Glance
+
+![Rebound 9-step agent DAG spanning Duffel, Google Calendar, Gmail, and Twilio, with the five safety invariants proven by the 30-scenario harness](docs/architecture.svg)
 
 ---
 
