@@ -62,13 +62,18 @@ def seed_duffel_order() -> tuple[str, str]:
         "Content-Type": "application/json",
     }
 
-    step(1, "Book real Duffel 'original' order (LHR → JFK — matches S02 fixture)")
+    # Route is configurable — the demo will search/rebook whatever route
+    # you seed, because /api/demo/trigger reads it back from the order.
+    origin = os.getenv("DEMO_SEED_ORIGIN", "SFO")
+    destination = os.getenv("DEMO_SEED_DESTINATION", "JFK")
+
+    step(1, f"Book real Duffel 'original' order ({origin} → {destination})")
     with httpx.Client(timeout=60.0, headers=headers) as client:
         r = client.post(
             f"{DUFFEL_API_URL}/offer_requests?return_offers=true",
             json={
                 "data": {
-                    "slices": [{"origin": "LHR", "destination": "JFK", "departure_date": depart}],
+                    "slices": [{"origin": origin, "destination": destination, "departure_date": depart}],
                     "passengers": [{"type": "adult"}],
                     "cabin_class": "economy",
                 }

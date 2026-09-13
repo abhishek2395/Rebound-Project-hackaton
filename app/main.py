@@ -252,11 +252,36 @@ async def trigger_demo_event(
             event_data["event_id"] = f"evt_demo_{scenario.lower()}_{int(datetime.now(timezone.utc).timestamp())}"
 
         # DEMO_ORIGINAL_ORDER_ID lets a live demo point at a real Duffel
-        # order that scripts/seed_demo_state.py booked, so the cancel-old
-        # step actually succeeds instead of 404'ing on the fixture's stub.
+        # order that scripts/seed_demo_state.py booked. When set, we override
+        # BOTH the order id (so cancel-old targets the real order) AND the
+        # flight route (so the agent searches the same route the traveler
+        # actually holds a ticket for). The fixture then contributes only the
+        # scenario shape — over-threshold, timeout, etc — not the geography.
         seeded_order_id = os.getenv("DEMO_ORIGINAL_ORDER_ID")
         if seeded_order_id:
             event_data["order_id"] = seeded_order_id
+            try:
+                from clients.duffel import DuffelClient
+                dclient = DuffelClient()
+                seeded_order = dclient.get_order(seeded_order_id)
+                seeded_slice = seeded_order["slices"][0]
+                seeded_segment = seeded_slice["segments"][0]
+                seeded_last_segment = seeded_slice["segments"][-1]
+                event_data["flight"] = dict(event_data.get("flight", {}))
+                event_data["flight"]["origin"] = seeded_slice["origin"]["iata_code"]
+                event_data["flight"]["destination"] = seeded_slice["destination"]["iata_code"]
+                event_data["flight"]["carrier"] = seeded_segment["marketing_carrier"]["iata_code"]
+                event_data["flight"]["number"] = seeded_segment["marketing_carrier_flight_number"]
+                event_data["flight"]["scheduled_departure"] = seeded_segment["departing_at"]
+                event_data["flight"]["scheduled_arrival"] = seeded_last_segment["arriving_at"]
+                logger.info(
+                    "Demo trigger: substituted seeded route %s->%s from order %s",
+                    event_data["flight"]["origin"],
+                    event_data["flight"]["destination"],
+                    seeded_order_id,
+                )
+            except Exception as e:
+                logger.warning("Could not fetch seeded order %s to override route: %s", seeded_order_id, e)
 
         event = DisruptionEvent.model_validate(event_data)
 
